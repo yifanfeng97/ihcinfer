@@ -1,0 +1,70 @@
+[project]
+name = "ihcinfer"
+version = "0.1.0"
+description = "Fast patch-based IHC inference library on whole-slide images (SVS/KFB)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Yifan Feng" }
+]
+keywords = ["DeepLIIF", "IHC", "WSI", "SVS", "KFB", "segmentation"]
+
+dependencies = [
+    "torch==2.8.0",
+    "torchvision>=0.14.1",
+    "numpy<2",
+    "Pillow",
+    "pandas",
+    "openslide-python",
+    "openslide-bin",
+    "kfbslide",
+    "opencv-python-headless",
+    "numcodecs<0.16",
+    "scikit-image",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "deepliif",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "ihcinfer",
+    "ihcinfer.inference",
+    "ihcinfer.models",
+    "ihcinfer.outputs",
+    "ihcinfer.prep",
+    "ihcinfer.readers",
+    "ihcinfer.scoring",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126" }]
+torchvision = [{ index = "pytorch-cu126" }]
+deepliif = { path = "../DeepLIIF", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: marks tests as slow (run with '-m slow' or 'pytest --override-ini=addopts=')"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "deepliif",
+]

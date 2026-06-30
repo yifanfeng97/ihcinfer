@@ -1,0 +1,24 @@
+# worktrees
+.worktrees/
+
+# Local Claude settings (personal overrides)
+.claude/settings.local.json
+
+# Test data
+tests/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.venv/
+.env
+
+# Runtime outputs (root only — not ihcinfer/outputs package)
+/outputs/
+
+# Lock file (optional)
+uv.lock

@@ -1,0 +1,17 @@
+import time
+from ihcinfer import SlideInference
+
+MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
+SVS = "tests/data/slides/98140-6 CD3.svs"
+
+inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[3], batch_size=8)
+t0 = time.perf_counter()
+result = inf.run_on_wsi(
+    SVS,
+    "outputs/wsi_baseline2",
+    num_region_samples=0,
+    num_patch_samples=0,
+    skip_thumbnail=True,
+)
+elapsed = time.perf_counter() - t0
+print(f"WSI core time (baseline): {elapsed:.2f}s, records: {len(result.records)}")
