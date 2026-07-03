@@ -29,7 +29,7 @@ from ..outputs import (
 )
 from ..prep import Tiler, TissueMask, TissueSegmenter
 from ..readers import create_reader
-from .patch import PatchInference, _resolution_for_tile, _run_batches_adaptive
+from .patch import PatchInference, _resolution_for_tile, run_batches_adaptive
 from .region import RegionInference
 
 
@@ -100,7 +100,7 @@ def _run_patches_adaptive(
             return_images=return_images,
         )
 
-    return _run_batches_adaptive(_infer, patches, batch_size)
+    return run_batches_adaptive(_infer, patches, batch_size)
 
 
 def _plan_patches_and_regions(

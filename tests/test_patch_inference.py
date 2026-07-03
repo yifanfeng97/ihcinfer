@@ -8,7 +8,7 @@ import pytest
 from PIL import Image
 
 from ihcinfer import SlideInference
-from ihcinfer.inference import _run_batches_adaptive
+from ihcinfer.inference import run_batches_adaptive
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 PATCH = "tests/data/patches/22_2.png"
@@ -155,7 +155,7 @@ def test_run_on_region(inference, tmp_path):
     assert inference.seg_key in region_results
 
 
-def test_run_batches_adaptive_runs_all_inputs():
+def testrun_batches_adaptive_runs_all_inputs():
     calls = []
 
     def infer(batch):
@@ -163,16 +163,16 @@ def test_run_batches_adaptive_runs_all_inputs():
         return [x * 2 for x in batch]
 
     inputs = list(range(10))
-    results = _run_batches_adaptive(infer, inputs, batch_size=3)
+    results = run_batches_adaptive(infer, inputs, batch_size=3)
     assert results == [x * 2 for x in inputs]
     assert sum(calls) == len(inputs)
 
 
-def test_run_batches_adaptive_empty():
-    assert _run_batches_adaptive(lambda b: b, [], batch_size=4) == []
+def testrun_batches_adaptive_empty():
+    assert run_batches_adaptive(lambda b: b, [], batch_size=4) == []
 
 
-def test_run_batches_adaptive_halves_on_oom():
+def testrun_batches_adaptive_halves_on_oom():
     """Simulate OOM once to verify the helper retries with a smaller batch."""
     oom_count = 0
 
@@ -183,17 +183,17 @@ def test_run_batches_adaptive_halves_on_oom():
             raise RuntimeError("CUDA out of memory")
         return [x + 1 for x in batch]
 
-    results = _run_batches_adaptive(infer, list(range(5)), batch_size=4)
+    results = run_batches_adaptive(infer, list(range(5)), batch_size=4)
     assert results == list(range(1, 6))
     assert oom_count == 1
 
 
-def test_run_batches_adaptive_mismatched_length_raises():
+def testrun_batches_adaptive_mismatched_length_raises():
     def infer(batch):
         return batch[:-1]
 
     with pytest.raises(RuntimeError, match="inference returned"):
-        _run_batches_adaptive(infer, [1, 2, 3], batch_size=2)
+        run_batches_adaptive(infer, [1, 2, 3], batch_size=2)
 
 
 def test_forward_arrays_matches_tensor_to_pil(inference):

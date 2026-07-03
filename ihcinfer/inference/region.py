@@ -10,7 +10,7 @@ from PIL import Image
 
 from ..outputs import save_patch_outputs
 from ..prep import Tiler, TissueMask, is_blank_patch
-from .patch import PatchInference, _run_batches_adaptive
+from .patch import PatchInference, run_batches_adaptive
 
 
 class RegionInference:
@@ -61,7 +61,7 @@ class RegionInference:
             def _infer(batch: List[Image.Image]) -> List[Tuple[dict, dict]]:
                 return self.patch_infer.run(batch)
 
-            all_results = _run_batches_adaptive(_infer, imgs, batch_size)
+            all_results = run_batches_adaptive(_infer, imgs, batch_size)
 
             for tile, (raw, scoring) in zip(filtered_tiles, all_results):
                 record = {

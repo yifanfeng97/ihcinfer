@@ -31,7 +31,7 @@ def _resolution_for_tile(tile_size: int) -> str:
     return "10x"
 
 
-def _run_batches_adaptive(
+def run_batches_adaptive(
     infer_fn: Callable[[List[T]], List[R]],
     inputs: List[T],
     batch_size: int,
