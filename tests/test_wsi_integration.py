@@ -6,7 +6,7 @@ import openslide
 import pytest
 from PIL import Image
 
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 SVS = "tests/data/slides/98140-6 CD3.svs"
@@ -30,9 +30,9 @@ def small_slide_path(tmp_path: Path) -> Path:
 
 
 @pytest.mark.slow
-def test_run_on_wsi_cropped_slide(small_slide_path: Path, tmp_path: Path):
-    inf = SlideInference(model_dir=MODEL_DIR, batch_size=4)
-    result = inf.run_on_wsi(
+def test_infer_wsi_cropped_slide(small_slide_path: Path, tmp_path: Path):
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),
         tissue_min_ratio=0.01,
@@ -52,10 +52,10 @@ def test_run_on_wsi_cropped_slide(small_slide_path: Path, tmp_path: Path):
 
 
 @pytest.mark.slow
-def test_run_on_wsi_arbitrary_chunk_size(small_slide_path: Path, tmp_path: Path):
+def test_infer_wsi_arbitrary_chunk_size(small_slide_path: Path, tmp_path: Path):
     """chunk_size no longer needs to be a multiple of region_size."""
-    inf = SlideInference(model_dir=MODEL_DIR, batch_size=4)
-    result = inf.run_on_wsi(
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),
         tissue_min_ratio=0.01,
@@ -78,9 +78,9 @@ def test_run_on_wsi_arbitrary_chunk_size(small_slide_path: Path, tmp_path: Path)
 
 
 @pytest.mark.slow
-def test_run_on_wsi_skip_thumbnail(small_slide_path: Path, tmp_path: Path):
-    inf = SlideInference(model_dir=MODEL_DIR, batch_size=4)
-    result = inf.run_on_wsi(
+def test_infer_wsi_skip_thumbnail(small_slide_path: Path, tmp_path: Path):
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),
         tissue_min_ratio=0.01,

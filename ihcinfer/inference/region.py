@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from typing import List, Tuple
 
 import numpy as np
@@ -10,7 +11,7 @@ from PIL import Image
 
 from ..outputs import save_patch
 from ..prep import Tiler, TissueMask, blank_scoring, is_blank_patch
-from .patch import MARKER_KEY, SEG_KEY, PatchInference, _resolution_for_tile, run_batches_adaptive
+from .patch import MARKER_KEY, SEG_KEY, PatchInference, _resolution_for_patch_size, run_batches_adaptive
 
 
 class RegionInference:
@@ -24,7 +25,7 @@ class RegionInference:
         region: Image.Image | np.ndarray,
         x_offset: int = 0,
         y_offset: int = 0,
-        tile_size: int = 512,
+        patch_size: int | None = None,
         overlap_size: int = 32,
         batch_size: int = 16,
         tissue_mask: TissueMask | None = None,
@@ -33,12 +34,27 @@ class RegionInference:
         patch_output_dir: str | None = None,
         stitch_outputs: bool = True,
         image_format: str = "jpg",
+        *,
+        tile_size: int | None = None,  # deprecated
     ) -> Tuple[List[dict], dict[str, Image.Image] | None]:
         """Infer one region and return patch records + optional stitched outputs."""
+        if patch_size is not None and tile_size is not None:
+            raise ValueError("Specify either patch_size or tile_size, not both")
+        if tile_size is not None:
+            warnings.warn(
+                "tile_size is deprecated; use patch_size instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            patch_size = tile_size
+        if patch_size is None:
+            patch_size = 512
+
         if isinstance(region, np.ndarray):
             region = Image.fromarray(region)
 
-        tiler = Tiler(region, tile_size=tile_size, overlap_size=overlap_size)
+        resolution = _resolution_for_patch_size(patch_size)
+        tiler = Tiler(region, tile_size=patch_size, overlap_size=overlap_size)
 
         filtered_tiles = []
         for tile in tiler:
@@ -55,7 +71,6 @@ class RegionInference:
             filtered_tiles.append(tile)
 
         records: List[dict] = []
-        resolution = _resolution_for_tile(tile_size)
         if filtered_tiles:
             imgs = [tile.img for tile in filtered_tiles]
 

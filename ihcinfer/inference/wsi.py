@@ -1,8 +1,8 @@
-"""High-efficiency patch-based inference for DeepLIIF on whole-slide images.
+"""High-efficiency patch-based IHC inference on whole-slide images.
 
-This module exposes the public ``SlideInference`` class.  The actual
-patch-level and region-level logic live in ``patch_inference`` and
-``region_inference`` to keep each file focused.
+This module exposes the public ``IHCAnalyzer`` class.  The actual
+patch-level and region-level logic live in ``patch.py`` and ``region.py``
+to keep each file focused.
 """
 
 from __future__ import annotations
@@ -27,19 +27,38 @@ from ..outputs import (
     save_patch_output,
     write_patch_csv,
 )
-from ..prep import Tiler, TissueMask, TissueSegmenter
+from ..prep import Tiler, TissueMask
 from ..readers import create_reader
 from .patch import (
     MARKER_KEY,
     SEG_KEY,
     PatchInference,
-    _resolution_for_tile,
+    _resolution_for_patch_size,
     run_batches_adaptive,
 )
 from .region import RegionInference
 
 
 PATCH_EXTENSIONS = (".png", ".jpg", ".jpeg")
+
+
+def _resolve_patch_size(
+    patch_size: int | None,
+    tile_size: int | None,
+    *,
+    default: int = 512,
+) -> int:
+    """Resolve ``patch_size`` with deprecated ``tile_size`` fallback."""
+    if patch_size is not None and tile_size is not None:
+        raise ValueError("Specify either patch_size or tile_size, not both")
+    if tile_size is not None:
+        warnings.warn(
+            "tile_size is deprecated; use patch_size instead",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return tile_size
+    return patch_size if patch_size is not None else default
 
 
 def _collect_patch_entries(
@@ -96,7 +115,7 @@ def _run_patches_adaptive(
     if not patches:
         return []
 
-    resolution = _resolution_for_tile(patches[0].width)
+    resolution = _resolution_for_patch_size(patches[0].width)
 
     def _infer(batch: list[Image.Image]) -> list[tuple[dict, dict]]:
         return patch_infer.run(
@@ -113,7 +132,7 @@ def _plan_patches_and_regions(
     width: int,
     height: int,
     tissue_mask: TissueMask | None,
-    tile_size: int,
+    patch_size: int,
     region_size: int,
     tissue_min_ratio: float,
 ) -> tuple[list[tuple[int, int, int, int]], list[tuple[int, int]]]:
@@ -126,10 +145,10 @@ def _plan_patches_and_regions(
     patches: list[tuple[int, int, int, int]] = []
     patch_set: set[tuple[int, int]] = set()
 
-    for y in range(0, height, tile_size):
-        for x in range(0, width, tile_size):
-            w = min(tile_size, width - x)
-            h = min(tile_size, height - y)
+    for y in range(0, height, patch_size):
+        for x in range(0, width, patch_size):
+            w = min(patch_size, width - x)
+            h = min(patch_size, height - y)
             if tissue_mask is not None and not tissue_mask.contains_patch(
                 x, y, w, h, min_ratio=tissue_min_ratio
             ):
@@ -137,7 +156,7 @@ def _plan_patches_and_regions(
             patches.append((x, y, w, h))
             patch_set.add((x, y))
 
-    n = region_size // tile_size
+    n = region_size // patch_size
     regions: list[tuple[int, int]] = []
     if height >= region_size and width >= region_size:
         for y in range(0, height - region_size + 1, region_size):
@@ -145,7 +164,7 @@ def _plan_patches_and_regions(
                 complete = True
                 for ry in range(n):
                     for rx in range(n):
-                        if (x + rx * tile_size, y + ry * tile_size) not in patch_set:
+                        if (x + rx * patch_size, y + ry * patch_size) not in patch_set:
                             complete = False
                             break
                     if not complete:
@@ -175,12 +194,12 @@ def _crop_patch(
     local_y: int,
     w: int,
     h: int,
-    tile_size: int,
+    patch_size: int,
 ) -> Image.Image:
-    """Crop a patch from a chunk and pad to ``tile_size`` if it is partial."""
+    """Crop a patch from a chunk and pad to ``patch_size`` if it is partial."""
     patch = chunk_img.crop((local_x, local_y, local_x + w, local_y + h))
-    if patch.size != (tile_size, tile_size):
-        padded = Image.new("RGB", (tile_size, tile_size), (255, 255, 255))
+    if patch.size != (patch_size, patch_size):
+        padded = Image.new("RGB", (patch_size, patch_size), (255, 255, 255))
         padded.paste(patch, (0, 0))
         patch = padded
     return patch
@@ -268,7 +287,7 @@ class WSIResult:
     patch_sample_dirs: list[Path] = field(default_factory=list)
 
 
-class SlideInference:
+class IHCAnalyzer:
     """Run IHC inference on a whole-slide image in batched patches."""
 
     def __init__(
@@ -305,6 +324,15 @@ class SlideInference:
     def model(self) -> InferenceModel:
         return self._patch_infer.model
 
+    def segment_tissue(self, slide_path_or_img, **kwargs) -> TissueMask:
+        """Segment IHC tissue and return a level-0 aligned ``TissueMask``.
+
+        This is a convenience wrapper that defaults to ``mode="ihc"``.
+        """
+        from ..prep.tissue import segment_tissue
+
+        return segment_tissue(slide_path_or_img, mode="ihc", **kwargs)
+
     @staticmethod
     def _reservoir_add(
         reservoir: list,
@@ -323,7 +351,7 @@ class SlideInference:
             if j < max_size:
                 reservoir[j] = item
 
-    def run_on_patches(
+    def infer_patches(
         self,
         inputs: str | Path | list[str | Path],
         *,
@@ -375,8 +403,8 @@ class SlideInference:
 
         names = _unique_names([name for name, _ in entries])
         originals = [img for _, img in entries]
-        tile_size = originals[0].width
-        resolution = _resolution_for_tile(tile_size)
+        patch_size = originals[0].width
+        resolution = _resolution_for_patch_size(patch_size)
 
         results: dict[str, dict] = {}
         batch_results: list[tuple[dict, dict]] = []
@@ -428,16 +456,16 @@ class SlideInference:
     ) -> list[tuple[dict, dict]]:
         """Run inference on a list of equal-sized RGB patches (internal use).
 
-        Most users should call :meth:`run_on_patches` instead.
+        Most users should call :meth:`infer_patches` instead.
         """
         return self._patch_infer.run(patches, return_marker=return_marker)
 
-    def run_on_region(
+    def infer_region(
         self,
         region: Image.Image | np.ndarray,
         x_offset: int = 0,
         y_offset: int = 0,
-        tile_size: int = 512,
+        patch_size: int | None = None,
         overlap_size: int = 32,
         tissue_mask: TissueMask | None = None,
         tissue_min_ratio: float = 0.01,
@@ -445,14 +473,17 @@ class SlideInference:
         patch_output_dir: str | None = None,
         stitch_outputs: bool = True,
         image_format: str | None = None,
+        *,
+        tile_size: int | None = None,  # deprecated
     ) -> tuple[list[dict], dict[str, Image.Image] | None]:
         """Infer one WSI region and return patch records + optional stitched outputs."""
+        patch_size = _resolve_patch_size(patch_size, tile_size)
         image_format = image_format if image_format is not None else self.image_format
         return self._region_infer.run(
             region,
             x_offset=x_offset,
             y_offset=y_offset,
-            tile_size=tile_size,
+            patch_size=patch_size,
             overlap_size=overlap_size,
             batch_size=self.batch_size,
             tissue_mask=tissue_mask,
@@ -469,7 +500,7 @@ class SlideInference:
         slide_path: str,
         output_dir: Path,
         region_size: int,
-        tile_size: int,
+        patch_size: int,
         image_format: str,
         save_marker: bool,
     ) -> list[Path]:
@@ -482,7 +513,7 @@ class SlideInference:
             return []
 
         region_paths: list[Path] = []
-        resolution = _resolution_for_tile(tile_size)
+        resolution = _resolution_for_patch_size(patch_size)
         region_samples_dir = output_dir / "region_samples"
         region_samples_dir.mkdir(exist_ok=True)
 
@@ -490,7 +521,7 @@ class SlideInference:
             for rx, ry in region_coords:
                 region_arr = reader.read((rx, ry, region_size, region_size))
                 region_img = Image.fromarray(region_arr)
-                tiler = Tiler(region_img, tile_size=tile_size, overlap_size=0)
+                tiler = Tiler(region_img, tile_size=patch_size, overlap_size=0)
 
                 seg_canvas = Image.new("RGB", (region_size, region_size))
                 overlay_canvas = Image.new("RGB", (region_size, region_size))
@@ -534,7 +565,7 @@ class SlideInference:
         patch_coords: list[tuple[int, int]],
         slide_path: str,
         output_dir: Path,
-        tile_size: int,
+        patch_size: int,
         image_format: str,
         save_marker: bool,
     ) -> list[Path]:
@@ -543,13 +574,13 @@ class SlideInference:
             return []
 
         patch_dirs: list[Path] = []
-        resolution = _resolution_for_tile(tile_size)
+        resolution = _resolution_for_patch_size(patch_size)
         patch_samples_dir = output_dir / "patch_samples"
         patch_samples_dir.mkdir(exist_ok=True)
 
         with create_reader(slide_path) as reader:
             for px, py in patch_coords:
-                patch_arr = reader.read((px, py, tile_size, tile_size))
+                patch_arr = reader.read((px, py, patch_size, patch_size))
                 patch_img = Image.fromarray(patch_arr)
                 images, _ = self._patch_infer.run(
                     [patch_img], resolution=resolution, return_marker=save_marker
@@ -578,12 +609,12 @@ class SlideInference:
 
         return patch_dirs
 
-    def run_on_wsi(
+    def infer_wsi(
         self,
         slide_path: str | Path,
         output_dir: str | Path,
         *,
-        tile_size: int = 512,
+        patch_size: int | None = None,
         chunk_size: int = 8192,
         region_size: int = 2048,
         tissue_min_ratio: float = 0.05,
@@ -599,10 +630,12 @@ class SlideInference:
         heatmap_grid_factor: int = 4,
         skip_thumbnail: bool = False,
         overlay_alpha: float | None = None,
+        tile_size: int | None = None,  # deprecated
     ) -> WSIResult:
         """Run inference on a whole-slide image and produce CSV/heatmap/samples."""
-        if region_size % tile_size != 0:
-            raise ValueError("region_size must be a multiple of tile_size")
+        patch_size = _resolve_patch_size(patch_size, tile_size)
+        if region_size % patch_size != 0:
+            raise ValueError("region_size must be a multiple of patch_size")
 
         slide_path = str(slide_path)
         output_dir = Path(output_dir).resolve()
@@ -610,7 +643,7 @@ class SlideInference:
         image_format = image_format if image_format is not None else self.image_format
         basename = Path(slide_path).stem
 
-        tissue_mask = TissueSegmenter(seg_level="auto", mode="ihc").segment(slide_path)
+        tissue_mask = self.segment_tissue(slide_path)
 
         with create_reader(slide_path) as reader:
             width, height = reader.width, reader.height
@@ -619,7 +652,7 @@ class SlideInference:
                 width,
                 height,
                 tissue_mask,
-                tile_size,
+                patch_size,
                 region_size,
                 tissue_min_ratio,
             )
@@ -644,11 +677,11 @@ class SlideInference:
                 chunk_patches: list[tuple[int, int, int, int, Image.Image]] = []
                 for px, py, pw, ph in chunk_map[(cx, cy)]:
                     patch_img = _crop_patch(
-                        chunk_img, px - cx, py - cy, pw, ph, tile_size
+                        chunk_img, px - cx, py - cy, pw, ph, patch_size
                     )
                     chunk_patches.append((px, py, pw, ph, patch_img))
 
-                    if pw == tile_size and ph == tile_size:
+                    if pw == patch_size and ph == patch_size:
                         patch_seen += 1
                         self._reservoir_add(
                             patch_reservoir, (px, py), patch_seen, num_patch_samples
@@ -670,8 +703,8 @@ class SlideInference:
             width,
             height,
             str(heatmap_path),
-            tile_size=tile_size,
-            downsample=tile_size,
+            patch_size=patch_size,
+            downsample=patch_size,
             cmap=heatmap_cmap,
             vmax=heatmap_vmax,
             sigma=heatmap_sigma,
@@ -714,7 +747,7 @@ class SlideInference:
             slide_path,
             output_dir,
             region_size,
-            tile_size,
+            patch_size,
             image_format,
             save_marker_in_samples,
         )
@@ -723,7 +756,7 @@ class SlideInference:
             patch_reservoir,
             slide_path,
             output_dir,
-            tile_size,
+            patch_size,
             image_format,
             save_marker_in_samples,
         )
@@ -750,5 +783,21 @@ class SlideInference:
             patch_sample_dirs=patch_dirs,
         )
 
-    # Backward-compatible alias.
-    run = run_on_wsi
+
+class SlideInference(IHCAnalyzer):
+    """Deprecated alias for :class:`IHCAnalyzer`."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        warnings.warn(
+            "SlideInference is deprecated and will be removed in a future release; "
+            "use IHCAnalyzer instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
+
+    # Backward-compatible method aliases.
+    run_on_wsi = IHCAnalyzer.infer_wsi
+    run_on_patches = IHCAnalyzer.infer_patches
+    run_on_region = IHCAnalyzer.infer_region
+    run = IHCAnalyzer.infer_wsi

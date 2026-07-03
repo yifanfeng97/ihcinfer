@@ -13,14 +13,14 @@ from PIL import Image
 
 from deepliif.models import find_marker_key, get_opt, init_nets, run_dask_batch
 from deepliif.postprocessing import compute_final_results
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 from ihcinfer.prep import TissueSegmenter
 from ihcinfer.readers import create_reader
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 SVS = "tests/data/slides/98140-6 CD3.svs"
 CPU = torch.device("cpu")
-TILE_SIZE = 512
+PATCH_SIZE = 512
 REGION_SIZE = 1024
 
 
@@ -34,13 +34,13 @@ def find_first_tissue_region(mask, slide_width, slide_height, region_size: int =
     raise RuntimeError("No tissue region found")
 
 
-def tile_region(region_img: Image.Image, tile_size: int = TILE_SIZE):
+def tile_region(region_img: Image.Image, patch_size: int = PATCH_SIZE):
     tiles = []
-    for y in range(0, region_img.height, tile_size):
-        for x in range(0, region_img.width, tile_size):
-            crop = region_img.crop((x, y, min(x + tile_size, region_img.width), min(y + tile_size, region_img.height)))
-            if crop.width < tile_size or crop.height < tile_size:
-                canvas = Image.new("RGB", (tile_size, tile_size), (255, 255, 255))
+    for y in range(0, region_img.height, patch_size):
+        for x in range(0, region_img.width, patch_size):
+            crop = region_img.crop((x, y, min(x + patch_size, region_img.width), min(y + patch_size, region_img.height)))
+            if crop.width < patch_size or crop.height < patch_size:
+                canvas = Image.new("RGB", (patch_size, patch_size), (255, 255, 255))
                 canvas.paste(crop, (0, 0))
                 crop = canvas
             tiles.append((x, y, crop))
@@ -48,13 +48,13 @@ def tile_region(region_img: Image.Image, tile_size: int = TILE_SIZE):
 
 
 def bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio: float = 0.0):
-    inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=4)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=4)
     t0 = time.perf_counter()
-    records, _ = inf.run_on_region(
+    records, _ = inf.infer_region(
         region_img,
         x_offset=x,
         y_offset=y,
-        tile_size=TILE_SIZE,
+        patch_size=PATCH_SIZE,
         overlap_size=0,
         tissue_mask=tissue_mask,
         tissue_min_ratio=tissue_min_ratio,
@@ -96,10 +96,10 @@ def main():
     print(f"Region: ({x}, {y}, {w}, {h}) from {SVS}\n")
 
     fast_elapsed_all, fast_records_all = bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio=0.0)
-    print(f"ihcinfer run_on_region ({fast_records_all} tiles, no tissue filter): {fast_elapsed_all:.2f}s")
+    print(f"ihcinfer infer_region ({fast_records_all} tiles, no tissue filter): {fast_elapsed_all:.2f}s")
 
     fast_elapsed_filt, fast_records_filt = bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio=0.05)
-    print(f"ihcinfer run_on_region ({fast_records_filt} tiles, min_ratio=0.05): {fast_elapsed_filt:.2f}s")
+    print(f"ihcinfer infer_region ({fast_records_filt} tiles, min_ratio=0.05): {fast_elapsed_filt:.2f}s")
 
     orig_elapsed, orig_tiles = bench_original_sequential(region_img, x, y)
     print(f"DeepLIIF original sequential ({orig_tiles} tiles): {orig_elapsed:.2f}s")

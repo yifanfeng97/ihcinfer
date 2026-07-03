@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 from PIL import Image
 
-from ihcinfer import SlideInference
 from ihcinfer.outputs import (
     blend_heatmap_overlay,
     build_heatmap,
@@ -13,9 +12,6 @@ from ihcinfer.outputs import (
     write_patch_csv,
 )
 from ihcinfer.prep import TissueMask
-
-MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
-PATCH = "tests/data/patches/22_2.png"
 
 
 @pytest.fixture
@@ -104,7 +100,7 @@ def test_build_heatmap_max_size(sample_records, tmp_path):
 def test_build_heatmap_full_resolution(sample_records, tmp_path):
     hm_path = tmp_path / "hm_full.png"
     build_heatmap(
-        sample_records, 1024, 512, str(hm_path), mode="percent_pos", tile_size=1
+        sample_records, 1024, 512, str(hm_path), mode="percent_pos", patch_size=1
     )
     assert hm_path.exists()
     img = Image.open(hm_path)

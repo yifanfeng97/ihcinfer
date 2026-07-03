@@ -23,15 +23,15 @@ uv sync
 ## 快速开始
 
 ```python
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 
-inf = SlideInference(
+analyzer = IHCAnalyzer(
     model_dir="/path/to/DeepLIIF/model-server/DeepLIIF_Latest_Model",
     gpu_ids=[0],
     batch_size=16,
 )
 
-result = inf.run_on_wsi(
+result = analyzer.infer_wsi(
     slide_path="/path/to/slide.svs",
     output_dir="/path/to/output",
 )
@@ -47,8 +47,8 @@ print(f"Patch samples: {len(result.patch_sample_dirs)}")
 ```
 ihcinfer/
 ├── ihcinfer/
-│   ├── __init__.py       # 公共 API：SlideInference
-│   ├── inference/        # 推理入口（SlideInference / PatchInference / RegionInference）
+│   ├── __init__.py       # 公共 API：IHCAnalyzer, segment_tissue
+│   ├── inference/        # 推理入口（IHCAnalyzer / PatchInference / RegionInference）
 │   ├── models/           # DeepLIIF 模型加载与运行
 │   ├── prep/             # 切片、组织 mask、空白 patch 过滤
 │   ├── readers/          # WSI 读取抽象层（OpenSlide / KFB / PIL）
@@ -61,15 +61,42 @@ ihcinfer/
 
 ## 高级用法
 
-除公共 API `SlideInference` 外，高级类/函数仍可通过子模块显式导入：
+除公共 API `IHCAnalyzer` 外，高级类/函数仍可通过子模块显式导入：
 
 ```python
 from ihcinfer.inference import PatchInference, RegionInference
 from ihcinfer.models import DeepLIIFModel
-from ihcinfer.prep import Tiler, TissueSegmenter, TissueMask
+from ihcinfer.prep import Tiler, TissueSegmenter, TissueMask, segment_tissue
 from ihcinfer.readers import create_reader
 from ihcinfer.scoring import compute_scoring, extract_cells
 from ihcinfer.outputs import build_patch_output, save_patch_output, build_heatmap
+```
+
+## 组织分割
+
+`ihcinfer` 提供了独立的 IHC 组织分割接口，默认使用针对 IHC 背景优化的 `mode="ihc"`：
+
+```python
+from ihcinfer import segment_tissue
+
+mask = segment_tissue("/path/to/slide.svs")
+print(mask.mask.shape)
+
+# 使用同一 analyzer 实例也可以直接调用
+from ihcinfer import IHCAnalyzer
+analyzer = IHCAnalyzer(model_dir="/path/to/model")
+mask = analyzer.segment_tissue("/path/to/slide.svs")
+```
+
+## 向后兼容
+
+`SlideInference` 仍可作为 `IHCAnalyzer` 的别名使用，但会在构造时触发 `DeprecationWarning`。原方法名 `run_on_wsi` / `run_on_patches` / `run_on_region` 以及参数 `tile_size` 也仍然可用并会发出弃用警告；同时传入 `patch_size` 和 `tile_size` 会抛出 `ValueError`。
+
+```python
+from ihcinfer import SlideInference  # deprecated alias
+
+inf = SlideInference(model_dir="/path/to/model")
+result = inf.run_on_wsi("/path/to/slide.svs", output_dir="./out", tile_size=512)
 ```
 
 ## 测试
@@ -100,7 +127,7 @@ uv run pytest tests/ -v
 
 ### WSI / Region 级推理
 
-- **Region（1024×1024，CPU）**：DeepLIIF original 顺序处理 4 张 tile 约 25.60s；ihcinfer `run_on_region` 约 19.83s（不过滤 tissue）/ 14.49s（按 `min_ratio=0.05` 过滤），分别快 **1.29x** / **1.77x**。
+- **Region（1024×1024，CPU）**：DeepLIIF original 顺序处理 4 张 patch 约 25.60s；ihcinfer `infer_region` 约 19.83s（不过滤 tissue）/ 14.49s（按 `min_ratio=0.05` 过滤），分别快 **1.29x** / **1.77x**。
 - **完整 WSI（GPU: cuda:0，1453 张 512×512 tissue patches）**：
   - ihcinfer 完整流程（CSV + heatmap + thumbnail + overlay + 2 region samples + 4 patch samples）：**3m46s**（≈0.16s/patch）。
   - ihcinfer 推理核心（CSV + heatmap，跳过可视化采样和 thumbnail）：**210s**（≈0.14s/patch）。
@@ -124,5 +151,5 @@ uv run python examples/infer_ihc.py \
   --slide_path /path/to/slide.svs \
   --output_dir ./ihc_outputs \
   --gpu_ids 0 --batch_size 8 \
-  --tile_size 512 --region_size 2048
+  --patch_size 512 --region_size 2048
 ```

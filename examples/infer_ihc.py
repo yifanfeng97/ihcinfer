@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 
 
 def main() -> None:
@@ -18,7 +18,7 @@ def main() -> None:
     parser.add_argument("--gpu_ids", type=int, nargs="+", default=[0], help="CUDA device ids")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size")
     parser.add_argument(
-        "--tile_size", type=int, default=512, help="Patch size in pixels (default 512)"
+        "--patch_size", type=int, default=512, help="Patch size in pixels (default 512)"
     )
     parser.add_argument(
         "--region_size",
@@ -81,17 +81,17 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    inf = SlideInference(
+    inf = IHCAnalyzer(
         model_dir=args.model_dir,
         gpu_ids=args.gpu_ids,
         batch_size=args.batch_size,
     )
 
-    kwargs = {"tile_size": args.tile_size, "region_size": args.region_size}
+    kwargs = {"patch_size": args.patch_size, "region_size": args.region_size}
     if args.chunk_size is not None:
         kwargs["chunk_size"] = args.chunk_size
 
-    result = inf.run_on_wsi(
+    result = inf.infer_wsi(
         slide_path=args.slide_path,
         output_dir=str(output_dir),
         num_region_samples=args.num_region_samples,
@@ -109,7 +109,7 @@ def main() -> None:
     )
 
     print("IHC WSI inference complete.")
-    print(f"Tile size: {args.tile_size}x{args.tile_size}")
+    print(f"Patch size: {args.patch_size}x{args.patch_size}")
     print(f"Region size: {args.region_size}x{args.region_size}")
     print(f"CSV: {result.csv_path}")
     print(f"Heatmap: {result.heatmap_path}")

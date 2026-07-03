@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer, SlideInference
 from ihcinfer.inference import run_batches_adaptive
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
@@ -16,7 +16,12 @@ PATCH = "tests/data/patches/22_2.png"
 
 @pytest.fixture(scope="module")
 def inference():
-    return SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+
+
+@pytest.fixture(scope="module")
+def analyzer():
+    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
 
 
 def _assert_scoring(score: dict) -> None:
@@ -26,8 +31,8 @@ def _assert_scoring(score: dict) -> None:
     assert 0.0 <= score["percent_pos"] <= 100.0
 
 
-def test_run_on_patches_returns_results(inference):
-    results = inference.run_on_patches([PATCH])
+def test_infer_patches_returns_results(inference):
+    results = inference.infer_patches([PATCH])
     assert isinstance(results, dict)
     assert "22_2" in results
     result = results["22_2"]
@@ -45,8 +50,8 @@ def test_run_on_patches_returns_results(inference):
 
 
 @pytest.mark.slow
-def test_run_on_patches_supports_directory(inference):
-    results = inference.run_on_patches("tests/data/patches")
+def test_infer_patches_supports_directory(inference):
+    results = inference.infer_patches("tests/data/patches")
     assert len(results) == 4
     for name, result in results.items():
         assert name
@@ -57,8 +62,8 @@ def test_run_on_patches_supports_directory(inference):
         _assert_scoring(result["scoring"])
 
 
-def test_run_on_patches_saves_outputs(inference, tmp_path: Path):
-    results = inference.run_on_patches([PATCH], output_dir=tmp_path)
+def test_infer_patches_saves_outputs(inference, tmp_path: Path):
+    results = inference.infer_patches([PATCH], output_dir=tmp_path)
     result = results["22_2"]
 
     assert isinstance(result["images"]["segmentation"], Image.Image)
@@ -74,18 +79,18 @@ def test_run_on_patches_saves_outputs(inference, tmp_path: Path):
     assert saved_scoring == result["scoring"]
 
 
-def test_run_on_patches_can_save_marker(inference, tmp_path: Path):
-    results = inference.run_on_patches([PATCH], output_dir=tmp_path, save_marker=True)
+def test_infer_patches_can_save_marker(inference, tmp_path: Path):
+    results = inference.infer_patches([PATCH], output_dir=tmp_path, save_marker=True)
     marker = results["22_2"]["images"].get("marker")
     assert isinstance(marker, Image.Image)
     assert (tmp_path / "22_2" / "marker.jpg").exists()
 
 
-def test_run_on_patches_blank_patch(inference, tmp_path: Path):
+def test_infer_patches_blank_patch(inference, tmp_path: Path):
     blank = tmp_path / "blank.png"
     Image.new("RGB", (512, 512), (255, 255, 255)).save(blank)
 
-    results = inference.run_on_patches([blank], output_dir=tmp_path)
+    results = inference.infer_patches([blank], output_dir=tmp_path)
     assert results["blank"]["scoring"] == {
         "num_total": 0,
         "num_pos": 0,
@@ -98,13 +103,13 @@ def test_run_on_patches_blank_patch(inference, tmp_path: Path):
 
 
 @pytest.mark.slow
-def test_run_on_patches_default_batch_size():
+def test_infer_patches_default_batch_size():
     # Different instance-level batch sizes should produce the same scoring.
-    inf_default = SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
-    inf_small = SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=1)
+    inf_default = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+    inf_small = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=1)
 
-    default_results = inf_default.run_on_patches([PATCH])
-    small_batch_results = inf_small.run_on_patches([PATCH])
+    default_results = inf_default.infer_patches([PATCH])
+    small_batch_results = inf_small.infer_patches([PATCH])
     assert (
         default_results["22_2"]["scoring"]
         == small_batch_results["22_2"]["scoring"]
@@ -140,11 +145,11 @@ def test_blank_image_patch(inference):
 
 
 @pytest.mark.slow
-def test_run_on_region(inference, tmp_path):
+def test_infer_region(inference, tmp_path):
     arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
     region = Image.fromarray(arr)
-    records, region_results = inference.run_on_region(
-        region, tile_size=512, overlap_size=0
+    records, region_results = inference.infer_region(
+        region, patch_size=512, overlap_size=0
     )
     assert len(records) == 4
     for rec in records:
@@ -153,6 +158,29 @@ def test_run_on_region(inference, tmp_path):
         assert "num_total" in rec
     assert region_results is not None
     assert "segmentation" in region_results
+
+
+def test_slide_inference_alias_warns():
+    with pytest.warns(DeprecationWarning, match="IHCAnalyzer"):
+        inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+    # old method names still work via alias
+    results = inf.run_on_patches([PATCH])
+    assert "22_2" in results
+
+
+def test_tile_size_deprecated_for_region(inference):
+    arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
+    region = Image.fromarray(arr)
+    with pytest.warns(DeprecationWarning, match="patch_size"):
+        records, _ = inference.infer_region(region, tile_size=512, overlap_size=0)
+    assert len(records) == 4
+
+
+def test_patch_size_and_tile_size_mutually_exclusive(inference):
+    arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
+    region = Image.fromarray(arr)
+    with pytest.raises(ValueError, match="not both"):
+        inference.infer_region(region, patch_size=512, tile_size=256)
 
 
 def testrun_batches_adaptive_runs_all_inputs():

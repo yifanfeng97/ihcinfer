@@ -15,7 +15,7 @@ from PIL import Image
 
 from deepliif.models import find_marker_key, get_opt, init_nets, run_dask_batch
 from deepliif.postprocessing import compute_final_results
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 from ihcinfer.models import DeepLIIFModel
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
@@ -103,7 +103,7 @@ def main():
 
     opt, nets, t_load_orig = load_original(device)
     model, t_load_fast = load_custom(device)
-    inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=gpu_ids, batch_size=len(patches))
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=gpu_ids, batch_size=len(patches))
 
     print(f"DeepLIIF original model load: {t_load_orig:.2f}s")
     print(f"ihcinfer model load:      {t_load_fast:.2f}s\n")

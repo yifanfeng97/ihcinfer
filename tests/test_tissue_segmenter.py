@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ihcinfer.prep import TissueMask, TissueSegmenter
+from ihcinfer.prep import TissueMask, TissueSegmenter, segment_tissue
 
 SVS = "tests/data/slides/98140-6 CD3.svs"
 PATCH = "tests/data/patches/22_2.png"
@@ -85,3 +85,19 @@ def test_ihc_mask_has_bbox():
 def test_invalid_mode_raises():
     with pytest.raises(ValueError):
         TissueSegmenter(mode="unknown")
+
+
+def test_segment_tissue_defaults_to_ihc():
+    img = Image.open(PATCH).convert("RGB")
+    mask1 = segment_tissue(img)
+    mask2 = TissueSegmenter(seg_level=0, mode="ihc").segment(img)
+    assert isinstance(mask1, TissueMask)
+    assert mask1.mask.shape == mask2.mask.shape
+
+
+def test_segment_tissue_numpy_input():
+    img = Image.open(PATCH).convert("RGB")
+    arr = np.array(img)
+    mask = segment_tissue(arr)
+    assert isinstance(mask, TissueMask)
+    assert mask.mask.sum() > 0

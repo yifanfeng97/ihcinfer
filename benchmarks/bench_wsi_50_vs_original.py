@@ -14,13 +14,13 @@ from PIL import Image
 
 from deepliif.models import find_marker_key, get_opt, init_nets, run_dask_batch
 from deepliif.postprocessing import compute_final_results
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 from ihcinfer.prep import TissueSegmenter
 from ihcinfer.readers import create_reader
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 SVS = "tests/data/slides/98140-6 CD3.svs"
-TILE_SIZE = 512
+PATCH_SIZE = 512
 NUM_PATCHES = 50
 
 
@@ -32,9 +32,9 @@ def sample_tissue_patches(slide_path: str, num_patches: int = NUM_PATCHES):
         width, height = reader.width, reader.height
         patches = []
         coords = []
-        for y in range(0, height - TILE_SIZE + 1, TILE_SIZE):
-            for x in range(0, width - TILE_SIZE + 1, TILE_SIZE):
-                if not tissue_mask.contains_patch(x, y, TILE_SIZE, TILE_SIZE, min_ratio=0.05):
+        for y in range(0, height - PATCH_SIZE + 1, PATCH_SIZE):
+            for x in range(0, width - PATCH_SIZE + 1, PATCH_SIZE):
+                if not tissue_mask.contains_patch(x, y, PATCH_SIZE, PATCH_SIZE, min_ratio=0.05):
                     continue
                 patches.append((x, y))
                 if len(patches) >= num_patches:
@@ -44,7 +44,7 @@ def sample_tissue_patches(slide_path: str, num_patches: int = NUM_PATCHES):
 
         images = []
         for x, y in patches[:num_patches]:
-            arr = reader.read((x, y, TILE_SIZE, TILE_SIZE))
+            arr = reader.read((x, y, PATCH_SIZE, PATCH_SIZE))
             images.append(Image.fromarray(arr))
 
     print(f"Sampled {len(images)} tissue patches from {slide_path}\n")
@@ -73,7 +73,7 @@ def bench_original_sequential(patches):
 
 
 def bench_ihcinfer_scoring_only(patches):
-    inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
     t0 = time.perf_counter()
     inf._patch_infer.run(patches, return_images=False)
     elapsed = time.perf_counter() - t0
@@ -81,7 +81,7 @@ def bench_ihcinfer_scoring_only(patches):
 
 
 def bench_ihcinfer_full(patches):
-    inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
     t0 = time.perf_counter()
     inf._run_on_image_patches(patches)
     elapsed = time.perf_counter() - t0

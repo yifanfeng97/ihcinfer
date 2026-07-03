@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import List, Tuple
+import warnings
 
 import cv2
 import numpy as np
@@ -216,7 +217,7 @@ def build_heatmap(
     height: int,
     out_path: str,
     mode: str = "percent_pos",
-    tile_size: int = 512,
+    patch_size: int = 512,
     downsample: int | None = None,
     cmap: str = "viridis",
     vmax: float | None = None,
@@ -229,13 +230,15 @@ def build_heatmap(
     radius_factor: float = 1.5,
     sigma_factor: float = 0.75,
     max_neighbors: int = 50,
+    *,
+    tile_size: int | None = None,  # deprecated
 ) -> None:
     """Build a heatmap from patch records.
 
     Two modes are supported:
 
     1. **Interpolated mode** (default when ``grid_factor`` is set): build a fine
-       grid whose cells are ``tile_size / grid_factor`` pixels and fill each cell
+       grid whose cells are ``patch_size / grid_factor`` pixels and fill each cell
        with a Gaussian-weighted average of nearby patch scores.  This produces the
        smooth, continuous appearance used by STPath and avoids visible patch blocks.
     2. **Grid mode** (legacy): assign each patch score to its footprint cell(s)
@@ -247,10 +250,10 @@ def build_heatmap(
         height: Level-0 image height in pixels.
         out_path: Path to write the heatmap image (format inferred from extension).
         mode: Metric to visualize, e.g. ``percent_pos`` or ``num_total``.
-        tile_size: Patch size used to estimate spacing in interpolated mode and
+        patch_size: Patch size used to estimate spacing in interpolated mode and
             as the fallback cell size in grid mode.
         downsample: Size in pixels of one heatmap cell in grid mode.  Default
-            ``None`` uses ``tile_size``.
+            ``None`` uses ``patch_size``.
         cmap: Colormap name. Supported: jet, viridis, plasma, inferno, magma,
             turbo, hot, cividis, twilight. Defaults to ``viridis``.
         vmax: Fixed upper bound for color scaling.  Values above ``vmax`` are
@@ -273,6 +276,14 @@ def build_heatmap(
         sigma_factor: Gaussian kernel sigma as a multiple of patch size.
         max_neighbors: Maximum number of neighbors considered per grid cell.
     """
+    if tile_size is not None:
+        warnings.warn(
+            "tile_size is deprecated; use patch_size instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        patch_size = tile_size
+
     if upscale is not None and upscale < 1:
         raise ValueError("upscale must be >= 1")
     if max_size is not None and max_size < 1:
@@ -281,7 +292,7 @@ def build_heatmap(
         raise ValueError("grid_factor must be >= 1")
 
     if grid_factor is not None:
-        patch_size = _estimate_patch_size(records) if records else tile_size
+        patch_size = _estimate_patch_size(records) if records else patch_size
         heatmap, valid = _build_interpolated_heatmap(
             records,
             width,
@@ -295,7 +306,7 @@ def build_heatmap(
         )
         hm_h, hm_w = heatmap.shape
     else:
-        downsample = downsample if downsample is not None else tile_size
+        downsample = downsample if downsample is not None else patch_size
         if downsample < 1:
             raise ValueError("downsample must be >= 1")
         heatmap, valid = _build_grid_heatmap(

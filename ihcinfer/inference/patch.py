@@ -23,10 +23,10 @@ SEG_KEY = "segmentation"
 MARKER_KEY = "marker"
 
 
-def _resolution_for_tile(tile_size: int) -> str:
-    if tile_size > 384:
+def _resolution_for_patch_size(patch_size: int) -> str:
+    if patch_size > 384:
         return "40x"
-    if tile_size > 192:
+    if patch_size > 192:
         return "20x"
     return "10x"
 
@@ -118,7 +118,7 @@ class PatchInference:
             return []
 
         tile_size = patches[0].width
-        resolution = resolution or _resolution_for_tile(tile_size)
+        resolution = resolution or _resolution_for_patch_size(tile_size)
 
         nonblank_indices: List[int] = []
         nonblank_patches: List[Image.Image] = []

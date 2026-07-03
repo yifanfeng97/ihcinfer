@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import argparse
 
-from ihcinfer import SlideInference
+from ihcinfer import IHCAnalyzer
 
 
 def main() -> None:
@@ -33,13 +33,13 @@ def main() -> None:
     parser.add_argument("--save_marker", action="store_true", help="Also save the inferred marker modality")
     args = parser.parse_args()
 
-    inf = SlideInference(
+    inf = IHCAnalyzer(
         model_dir=args.model_dir,
         gpu_ids=args.gpu_ids,
         batch_size=args.batch_size,
     )
 
-    results = inf.run_on_patches(
+    results = inf.infer_patches(
         args.input,
         output_dir=args.output_dir,
         save_marker=args.save_marker,
