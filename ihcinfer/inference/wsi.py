@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import random
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -40,25 +39,6 @@ from .region import RegionInference
 
 
 PATCH_EXTENSIONS = (".png", ".jpg", ".jpeg")
-
-
-def _resolve_patch_size(
-    patch_size: int | None,
-    tile_size: int | None,
-    *,
-    default: int = 512,
-) -> int:
-    """Resolve ``patch_size`` with deprecated ``tile_size`` fallback."""
-    if patch_size is not None and tile_size is not None:
-        raise ValueError("Specify either patch_size or tile_size, not both")
-    if tile_size is not None:
-        warnings.warn(
-            "tile_size is deprecated; use patch_size instead",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-        return tile_size
-    return patch_size if patch_size is not None else default
 
 
 def _collect_patch_entries(
@@ -465,7 +445,7 @@ class IHCAnalyzer:
         region: Image.Image | np.ndarray,
         x_offset: int = 0,
         y_offset: int = 0,
-        patch_size: int | None = None,
+        patch_size: int = 512,
         overlap_size: int = 32,
         tissue_mask: TissueMask | None = None,
         tissue_min_ratio: float = 0.01,
@@ -473,11 +453,8 @@ class IHCAnalyzer:
         patch_output_dir: str | None = None,
         stitch_outputs: bool = True,
         image_format: str | None = None,
-        *,
-        tile_size: int | None = None,  # deprecated
     ) -> tuple[list[dict], dict[str, Image.Image] | None]:
         """Infer one WSI region and return patch records + optional stitched outputs."""
-        patch_size = _resolve_patch_size(patch_size, tile_size)
         image_format = image_format if image_format is not None else self.image_format
         return self._region_infer.run(
             region,
@@ -614,7 +591,7 @@ class IHCAnalyzer:
         slide_path: str | Path,
         output_dir: str | Path,
         *,
-        patch_size: int | None = None,
+        patch_size: int = 512,
         chunk_size: int = 8192,
         region_size: int = 2048,
         tissue_min_ratio: float = 0.05,
@@ -630,10 +607,8 @@ class IHCAnalyzer:
         heatmap_grid_factor: int = 4,
         skip_thumbnail: bool = False,
         overlay_alpha: float | None = None,
-        tile_size: int | None = None,  # deprecated
     ) -> WSIResult:
         """Run inference on a whole-slide image and produce CSV/heatmap/samples."""
-        patch_size = _resolve_patch_size(patch_size, tile_size)
         if region_size % patch_size != 0:
             raise ValueError("region_size must be a multiple of patch_size")
 
@@ -782,22 +757,3 @@ class IHCAnalyzer:
             region_sample_paths=region_paths,
             patch_sample_dirs=patch_dirs,
         )
-
-
-class SlideInference(IHCAnalyzer):
-    """Deprecated alias for :class:`IHCAnalyzer`."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        warnings.warn(
-            "SlideInference is deprecated and will be removed in a future release; "
-            "use IHCAnalyzer instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)
-
-    # Backward-compatible method aliases.
-    run_on_wsi = IHCAnalyzer.infer_wsi
-    run_on_patches = IHCAnalyzer.infer_patches
-    run_on_region = IHCAnalyzer.infer_region
-    run = IHCAnalyzer.infer_wsi

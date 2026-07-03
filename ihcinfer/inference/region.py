@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import warnings
 from typing import List, Tuple
 
 import numpy as np
@@ -25,7 +24,7 @@ class RegionInference:
         region: Image.Image | np.ndarray,
         x_offset: int = 0,
         y_offset: int = 0,
-        patch_size: int | None = None,
+        patch_size: int = 512,
         overlap_size: int = 32,
         batch_size: int = 16,
         tissue_mask: TissueMask | None = None,
@@ -34,22 +33,8 @@ class RegionInference:
         patch_output_dir: str | None = None,
         stitch_outputs: bool = True,
         image_format: str = "jpg",
-        *,
-        tile_size: int | None = None,  # deprecated
     ) -> Tuple[List[dict], dict[str, Image.Image] | None]:
         """Infer one region and return patch records + optional stitched outputs."""
-        if patch_size is not None and tile_size is not None:
-            raise ValueError("Specify either patch_size or tile_size, not both")
-        if tile_size is not None:
-            warnings.warn(
-                "tile_size is deprecated; use patch_size instead",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            patch_size = tile_size
-        if patch_size is None:
-            patch_size = 512
-
         if isinstance(region, np.ndarray):
             region = Image.fromarray(region)
 

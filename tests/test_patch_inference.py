@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ihcinfer import IHCAnalyzer, SlideInference
+from ihcinfer import IHCAnalyzer
 from ihcinfer.inference import run_batches_adaptive
 
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
@@ -158,29 +158,6 @@ def test_infer_region(inference, tmp_path):
         assert "num_total" in rec
     assert region_results is not None
     assert "segmentation" in region_results
-
-
-def test_slide_inference_alias_warns():
-    with pytest.warns(DeprecationWarning, match="IHCAnalyzer"):
-        inf = SlideInference(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
-    # old method names still work via alias
-    results = inf.run_on_patches([PATCH])
-    assert "22_2" in results
-
-
-def test_tile_size_deprecated_for_region(inference):
-    arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
-    region = Image.fromarray(arr)
-    with pytest.warns(DeprecationWarning, match="patch_size"):
-        records, _ = inference.infer_region(region, tile_size=512, overlap_size=0)
-    assert len(records) == 4
-
-
-def test_patch_size_and_tile_size_mutually_exclusive(inference):
-    arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
-    region = Image.fromarray(arr)
-    with pytest.raises(ValueError, match="not both"):
-        inference.infer_region(region, patch_size=512, tile_size=256)
 
 
 def testrun_batches_adaptive_runs_all_inputs():

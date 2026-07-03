@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import List, Tuple
-import warnings
 
 import cv2
 import numpy as np
@@ -230,8 +229,6 @@ def build_heatmap(
     radius_factor: float = 1.5,
     sigma_factor: float = 0.75,
     max_neighbors: int = 50,
-    *,
-    tile_size: int | None = None,  # deprecated
 ) -> None:
     """Build a heatmap from patch records.
 
@@ -276,14 +273,6 @@ def build_heatmap(
         sigma_factor: Gaussian kernel sigma as a multiple of patch size.
         max_neighbors: Maximum number of neighbors considered per grid cell.
     """
-    if tile_size is not None:
-        warnings.warn(
-            "tile_size is deprecated; use patch_size instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        patch_size = tile_size
-
     if upscale is not None and upscale < 1:
         raise ValueError("upscale must be >= 1")
     if max_size is not None and max_size < 1:

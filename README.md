@@ -88,17 +88,6 @@ analyzer = IHCAnalyzer(model_dir="/path/to/model")
 mask = analyzer.segment_tissue("/path/to/slide.svs")
 ```
 
-## 向后兼容
-
-`SlideInference` 仍可作为 `IHCAnalyzer` 的别名使用，但会在构造时触发 `DeprecationWarning`。原方法名 `run_on_wsi` / `run_on_patches` / `run_on_region` 以及参数 `tile_size` 也仍然可用并会发出弃用警告；同时传入 `patch_size` 和 `tile_size` 会抛出 `ValueError`。
-
-```python
-from ihcinfer import SlideInference  # deprecated alias
-
-inf = SlideInference(model_dir="/path/to/model")
-result = inf.run_on_wsi("/path/to/slide.svs", output_dir="./out", tile_size=512)
-```
-
 ## 测试
 
 ```bash
