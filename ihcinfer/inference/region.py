@@ -8,9 +8,9 @@ from typing import List, Tuple
 import numpy as np
 from PIL import Image
 
-from ..outputs import save_patch_outputs
-from ..prep import Tiler, TissueMask, is_blank_patch
-from .patch import PatchInference, run_batches_adaptive
+from ..outputs import save_patch
+from ..prep import Tiler, TissueMask, blank_scoring, is_blank_patch
+from .patch import MARKER_KEY, SEG_KEY, PatchInference, _resolution_for_tile, run_batches_adaptive
 
 
 class RegionInference:
@@ -55,11 +55,12 @@ class RegionInference:
             filtered_tiles.append(tile)
 
         records: List[dict] = []
+        resolution = _resolution_for_tile(tile_size)
         if filtered_tiles:
             imgs = [tile.img for tile in filtered_tiles]
 
             def _infer(batch: List[Image.Image]) -> List[Tuple[dict, dict]]:
-                return self.patch_infer.run(batch)
+                return self.patch_infer.run(batch, resolution=resolution)
 
             all_results = run_batches_adaptive(_infer, imgs, batch_size)
 
@@ -79,7 +80,15 @@ class RegionInference:
                         f"patch_{x_offset}_{y_offset}_{tile.abs_cx}_{tile.abs_cy}",
                     )
                     os.makedirs(patch_dir, exist_ok=True)
-                    save_patch_outputs(record["patch_id"], raw, patch_dir, image_format=image_format)
+                    save_patch(
+                        name=record["patch_id"],
+                        original=tile.img,
+                        segmentation=raw[SEG_KEY],
+                        marker=raw.get(MARKER_KEY),
+                        output_dir=patch_dir,
+                        image_format=image_format,
+                        resolution=resolution,
+                    )
                 if stitch_outputs:
                     tiler.stitch(tile, raw)
 

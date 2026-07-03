@@ -1,4 +1,4 @@
-"""WSI-level output helpers: CSV and per-patch image saving."""
+"""WSI-level output helpers: CSV and thumbnail reading."""
 
 from __future__ import annotations
 
@@ -62,23 +62,3 @@ def read_slide_thumbnail(slide_path: str, target_size: tuple[int, int]) -> Image
     if thumb.size != target_size:
         thumb = thumb.resize(target_size, Image.LANCZOS)
     return thumb.convert("RGB")
-
-
-_PATCH_KEY_NAMES = {"G4": "marker", "G5": "segmentation"}
-
-
-def save_patch_outputs(
-    patch_id: str,
-    images: dict[str, Image.Image],
-    output_dir: str,
-    image_format: str = "jpg",
-) -> None:
-    """Save per-patch output images using user-friendly filenames.
-
-    ``G5`` is saved as ``segmentation`` and ``G4`` as ``marker``; other keys
-    keep their original names.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    for key, img in images.items():
-        filename = _PATCH_KEY_NAMES.get(key, key)
-        img.save(os.path.join(output_dir, f"{filename}.{image_format}"), quality=95)

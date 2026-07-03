@@ -4,17 +4,17 @@ import numpy as np
 import torch
 
 # Monkey-patch DeepLIIFModel.forward to skip marker-to-PIL conversion.
-from ihcinfer.models import DeepLIIFModel, tensor_to_pil
+from ihcinfer.models import DeepLIIFModel, ModelOutput, tensor_to_pil
 
 _original_forward = DeepLIIFModel.forward
 
-def _seg_only_forward(self, images, return_modalities=False):
+def _seg_only_forward(self, images):
     if not images:
         return []
     gens, seg_tensor = self.forward_tensors(images)
     results = []
     for b in range(seg_tensor.size(0)):
-        results.append({self.seg_key: tensor_to_pil(seg_tensor[b])})
+        results.append(ModelOutput(segmentation=tensor_to_pil(seg_tensor[b])))
     return results
 
 DeepLIIFModel.forward = _seg_only_forward

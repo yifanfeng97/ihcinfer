@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Dict, List
 
 import numpy as np
 from PIL import Image
+
+
+@dataclass
+class ModelOutput:
+    """Typed output produced by an :class:`InferenceModel`.
+
+    Attributes:
+        segmentation: Final RGB segmentation image.
+        marker: Optional inferred marker modality.
+        modalities: Optional dict of additional model-specific modalities.
+    """
+
+    segmentation: Image.Image
+    marker: Image.Image | None = None
+    modalities: Dict[str, Image.Image] | None = None
 
 
 class InferenceModel(ABC):
@@ -17,31 +33,16 @@ class InferenceModel(ABC):
     rest of the pipeline.
     """
 
-    @property
     @abstractmethod
-    def seg_key(self) -> str:
-        """Key used for the final segmentation image in result dicts."""
-        ...
-
-    @property
-    @abstractmethod
-    def marker_key(self) -> str | None:
-        """Key used for the inferred marker image, or ``None`` if unavailable."""
-        ...
-
-    @abstractmethod
-    def forward(self, images: List[Image.Image]) -> List[Dict[str, Image.Image]]:
-        """Run the full model and return a dict of output images per input.
-
-        Each returned dict must contain at least ``self.seg_key``.
-        """
+    def forward(self, images: List[Image.Image]) -> List[ModelOutput]:
+        """Run the full model and return typed outputs, one per input image."""
         ...
 
     @abstractmethod
     def forward_arrays(self, images: List[Image.Image]) -> List[np.ndarray]:
         """Scoring-only fast path returning uint8 RGB segmentation arrays.
 
-        This should produce the same semantic segmentation as ``forward`` but
-        skip expensive PIL/marker creation when only cell counts are needed.
+        This should produce the same semantic segmentation as :meth:`forward`
+        but skip expensive PIL/marker creation when only cell counts are needed.
         """
         ...

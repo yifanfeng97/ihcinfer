@@ -116,7 +116,7 @@ def test_run_on_image_patches_returns_scoring(inference):
     results = inference._run_on_image_patches([img])
     assert len(results) == 1
     images, scoring = results[0]
-    assert inference.seg_key in images
+    assert "segmentation" in images
     _assert_scoring(scoring)
 
 
@@ -152,7 +152,7 @@ def test_run_on_region(inference, tmp_path):
         assert "x" in rec and "y" in rec
         assert "num_total" in rec
     assert region_results is not None
-    assert inference.seg_key in region_results
+    assert "segmentation" in region_results
 
 
 def testrun_batches_adaptive_runs_all_inputs():
@@ -204,8 +204,7 @@ def test_forward_arrays_matches_tensor_to_pil(inference):
     assert len(pil_results) == 1
     assert len(array_results) == 1
 
-    seg_key = inference._patch_infer.model.seg_key
-    pil_arr = np.asarray(pil_results[0][seg_key])
+    pil_arr = np.asarray(pil_results[0].segmentation)
     assert np.array_equal(pil_arr, array_results[0])
     assert array_results[0].dtype == np.uint8
     assert array_results[0].shape == (img.height, img.width, 3)
@@ -222,7 +221,7 @@ def test_patch_inference_run_return_images_false(inference):
     full_images, full_scoring = full_results[0]
     scoring_images, scoring_only = scoring_results[0]
 
-    assert inference.seg_key in full_images
+    assert "segmentation" in full_images
     assert scoring_images == {}
     assert scoring_only == full_scoring
     _assert_scoring(scoring_only)

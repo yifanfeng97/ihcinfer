@@ -1,17 +1,12 @@
 """High-level patch output construction and saving.
 
-This module encapsulates the standard DeepLIIF patch output pipeline:
+This module encapsulates the standard IHC patch output pipeline:
 
-- final segmentation image (G5)
+- final segmentation image
 - original patch with red/blue cell contours (overlay)
 - ``cells.json`` with per-cell centroid/boundary/positive/size
 - ``scoring.json`` with total/positive/negative counts
-- optional inferred marker modality (G4)
-
-The :class:`PatchOutput` dataclass, the lower-level ``build_patch_output`` /
-``save_patch_output`` helpers, and the convenience :func:`save_patch` function
-are library-level primitives; the example script only handles CLI argument
-parsing and directory naming.
+- optional inferred marker modality
 """
 
 from __future__ import annotations
@@ -29,25 +24,25 @@ from ..scoring import compute_scoring_from_cells, draw_contours, extract_cells
 
 @dataclass
 class PatchOutput:
-    """User-facing outputs for a single DeepLIIF patch."""
+    """User-facing outputs for a single patch."""
 
     name: str
     original: Image.Image
-    images: Dict[str, Image.Image]
-    seg_key: str
-    marker_key: str | None
+    segmentation: Image.Image
+    marker: Image.Image | None
     scoring: Dict[str, int | float]
     cells: List[Dict[str, object]]
     overlay: Image.Image
+    extra_images: Dict[str, Image.Image] | None = None
 
 
 def build_patch_output(
     name: str,
     original: Image.Image,
-    images: Dict[str, Image.Image],
+    segmentation: Image.Image,
+    marker: Image.Image | None = None,
     *,
-    seg_key: str = "segmentation",
-    marker_key: str | None = "marker",
+    extra_images: Dict[str, Image.Image] | None = None,
     overlay_thickness: int = 2,
     resolution: str = "40x",
 ) -> PatchOutput:
@@ -56,33 +51,28 @@ def build_patch_output(
     Args:
         name: Identifier used for logging / directory naming.
         original: The input RGB patch.
-        images: Dictionary of model outputs (must contain *seg_key*).
-        seg_key: Key for the final segmentation image (default ``segmentation``).
-        marker_key: Key for the inferred marker image (default ``marker``).
+        segmentation: Final RGB segmentation image.
+        marker: Optional inferred marker modality.
+        extra_images: Optional dict of additional images to save.
         overlay_thickness: Thickness of the contour lines drawn on the overlay.
         resolution: Magnification string used for cell-size thresholds.
 
     Returns:
         A :class:`PatchOutput` instance ready to be saved.
     """
-    seg = images.get(seg_key)
-    if seg is None:
-        raise ValueError(f"Segmentation image '{seg_key}' not found in model outputs")
-
-    marker = images.get(marker_key) if marker_key else None
-    cells = extract_cells(seg, marker, resolution=resolution)
+    cells = extract_cells(segmentation, marker, resolution=resolution)
     overlay = draw_contours(original, cells, thickness=overlay_thickness)
     scoring = compute_scoring_from_cells(cells)
 
     return PatchOutput(
         name=name,
         original=original,
-        images=images,
-        seg_key=seg_key,
-        marker_key=marker_key,
+        segmentation=segmentation,
+        marker=marker,
         scoring=scoring,
         cells=cells,
         overlay=overlay,
+        extra_images=extra_images,
     )
 
 
@@ -108,20 +98,22 @@ def save_patch_output(
         - ``scoring.json``
         - ``marker.{image_format}`` (only if *save_marker* is True and a marker
           image is present)
+        - any keys in ``extra_images`` as ``{key}.{image_format}``
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    seg = output.images.get(output.seg_key)
-    if seg is not None:
-        _save_image(seg, output_dir / f"segmentation.{image_format}", image_format)
-
+    _save_image(
+        output.segmentation, output_dir / f"segmentation.{image_format}", image_format
+    )
     _save_image(output.overlay, output_dir / f"overlay.{image_format}", image_format)
 
-    if save_marker and output.marker_key:
-        marker = output.images.get(output.marker_key)
-        if marker is not None:
-            _save_image(marker, output_dir / f"marker.{image_format}", image_format)
+    if save_marker and output.marker is not None:
+        _save_image(output.marker, output_dir / f"marker.{image_format}", image_format)
+
+    if output.extra_images:
+        for key, img in output.extra_images.items():
+            _save_image(img, output_dir / f"{key}.{image_format}", image_format)
 
     with open(output_dir / "cells.json", "w", encoding="utf-8") as f:
         json.dump({"cells": output.cells}, f, indent=2)
@@ -133,11 +125,11 @@ def save_patch_output(
 def save_patch(
     name: str,
     original: Image.Image,
-    images: Dict[str, Image.Image],
+    segmentation: Image.Image,
     output_dir: str | Path,
     *,
-    seg_key: str = "segmentation",
-    marker_key: str | None = "marker",
+    marker: Image.Image | None = None,
+    extra_images: Dict[str, Image.Image] | None = None,
     overlay_thickness: int = 2,
     resolution: str = "40x",
     image_format: str = "jpg",
@@ -151,9 +143,9 @@ def save_patch(
     output = build_patch_output(
         name=name,
         original=original,
-        images=images,
-        seg_key=seg_key,
-        marker_key=marker_key,
+        segmentation=segmentation,
+        marker=marker,
+        extra_images=extra_images,
         overlay_thickness=overlay_thickness,
         resolution=resolution,
     )

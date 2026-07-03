@@ -10,7 +10,6 @@ from ihcinfer.outputs import (
     blend_heatmap_overlay,
     build_heatmap,
     read_slide_thumbnail,
-    save_patch_outputs,
     write_patch_csv,
 )
 from ihcinfer.prep import TissueMask
@@ -111,22 +110,6 @@ def test_build_heatmap_full_resolution(sample_records, tmp_path):
     img = Image.open(hm_path)
     # default upscale is 2x
     assert img.size == (2048, 1024)
-
-
-def test_save_patch_outputs(tmp_path):
-    images = {
-        "Seg": Image.new("RGB", (64, 64), (0, 0, 0)),
-        "SegRefined": Image.new("RGB", (64, 64), (255, 0, 0)),
-        "SegOverlaid": Image.new("RGB", (64, 64), (0, 255, 0)),
-    }
-    save_patch_outputs("p0", images, str(tmp_path))
-    for key in images:
-        assert (tmp_path / f"{key}.jpg").exists()
-
-    png_path = tmp_path / "png"
-    save_patch_outputs("p0", images, str(png_path), image_format="png")
-    for key in images:
-        assert (png_path / f"{key}.png").exists()
 
 
 def test_blend_heatmap_overlay():

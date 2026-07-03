@@ -29,7 +29,13 @@ from ..outputs import (
 )
 from ..prep import Tiler, TissueMask, TissueSegmenter
 from ..readers import create_reader
-from .patch import PatchInference, _resolution_for_tile, run_batches_adaptive
+from .patch import (
+    MARKER_KEY,
+    SEG_KEY,
+    PatchInference,
+    _resolution_for_tile,
+    run_batches_adaptive,
+)
 from .region import RegionInference
 
 
@@ -299,14 +305,6 @@ class SlideInference:
     def model(self) -> InferenceModel:
         return self._patch_infer.model
 
-    @property
-    def seg_key(self) -> str:
-        return self._patch_infer.seg_key
-
-    @property
-    def marker_key(self) -> str | None:
-        return self._patch_infer.marker_key
-
     @staticmethod
     def _reservoir_add(
         reservoir: list,
@@ -392,13 +390,14 @@ class SlideInference:
             result_images: dict[str, Image.Image] = {}
             cells: list[dict[str, object]] = []
 
-            if self.seg_key in images:
+            segmentation = images.get(SEG_KEY)
+            if segmentation is not None:
+                marker = images.get(MARKER_KEY) if save_marker else None
                 output = build_patch_output(
                     name=name,
                     original=orig,
-                    images=images,
-                    seg_key=self.seg_key,
-                    marker_key=self.marker_key,
+                    segmentation=segmentation,
+                    marker=marker,
                     overlay_thickness=overlay_thickness,
                     resolution=resolution,
                 )
@@ -411,10 +410,10 @@ class SlideInference:
                         save_marker=save_marker,
                     )
 
-                result_images[self.seg_key] = output.images[self.seg_key]
+                result_images[SEG_KEY] = output.segmentation
                 result_images["overlay"] = output.overlay
-                if save_marker and self.marker_key and self.marker_key in output.images:
-                    result_images[self.marker_key] = output.images[self.marker_key]
+                if marker is not None:
+                    result_images[MARKER_KEY] = marker
 
                 cells = output.cells
 
@@ -504,23 +503,20 @@ class SlideInference:
                         imgs, resolution=resolution, return_marker=save_marker
                     )
                     for tile, (images, _) in zip(batch_tiles, results):
-                        if self.seg_key not in images:
+                        segmentation = images.get(SEG_KEY)
+                        if segmentation is None:
                             continue
+                        marker = images.get(MARKER_KEY) if save_marker else None
                         output = build_patch_output(
                             name=f"{rx + tile.abs_cx}_{ry + tile.abs_cy}",
                             original=tile.img,
-                            images=images,
-                            seg_key=self.seg_key,
-                            marker_key=self.marker_key,
+                            segmentation=segmentation,
+                            marker=marker,
                             overlay_thickness=self.overlay_thickness,
                             resolution=resolution,
                         )
-                        seg_canvas.paste(
-                            output.images[self.seg_key], (tile.abs_cx, tile.abs_cy)
-                        )
-                        overlay_canvas.paste(
-                            output.overlay, (tile.abs_cx, tile.abs_cy)
-                        )
+                        seg_canvas.paste(output.segmentation, (tile.abs_cx, tile.abs_cy))
+                        overlay_canvas.paste(output.overlay, (tile.abs_cx, tile.abs_cy))
 
                 region_dir = region_samples_dir / f"{rx}_{ry}"
                 region_dir.mkdir(exist_ok=True)
@@ -558,15 +554,16 @@ class SlideInference:
                 images, _ = self._patch_infer.run(
                     [patch_img], resolution=resolution, return_marker=save_marker
                 )[0]
-                if self.seg_key not in images:
+                segmentation = images.get(SEG_KEY)
+                if segmentation is None:
                     continue
 
+                marker = images.get(MARKER_KEY) if save_marker else None
                 output = build_patch_output(
                     name=f"{px}_{py}",
                     original=patch_img,
-                    images=images,
-                    seg_key=self.seg_key,
-                    marker_key=self.marker_key,
+                    segmentation=segmentation,
+                    marker=marker,
                     overlay_thickness=self.overlay_thickness,
                     resolution=resolution,
                 )

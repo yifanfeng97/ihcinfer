@@ -27,16 +27,11 @@ def _make_output(
 ) -> PatchOutput:
     original = original or Image.new("RGB", (64, 64), (200, 200, 200))
     seg = seg or _red_segmentation()
-    images: dict[str, Image.Image] = {"segmentation": seg}
-    marker_key: str | None = None
-    if marker is not None:
-        images["marker"] = marker
-        marker_key = "marker"
     return build_patch_output(
         name="test_patch",
         original=original,
-        images=images,
-        marker_key=marker_key,
+        segmentation=seg,
+        marker=marker,
     )
 
 
@@ -50,16 +45,6 @@ def test_build_patch_output_returns_cells_and_overlay():
     assert all("size" in c for c in output.cells)
     assert output.overlay.size == (64, 64)
     assert output.scoring["num_total"] >= 1
-
-
-def test_build_patch_output_requires_seg_key():
-    with pytest.raises(ValueError, match="Segmentation image 'G5' not found"):
-        build_patch_output(
-            name="bad",
-            original=Image.new("RGB", (64, 64)),
-            images={"G4": Image.new("RGB", (64, 64))},
-            seg_key="G5",
-        )
 
 
 def test_save_patch_output_writes_jpg_by_default(tmp_path: Path):

@@ -16,7 +16,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
-from .base import InferenceModel
+from .base import InferenceModel, ModelOutput
 from .options import DeepLIIFOptions
 
 
@@ -98,12 +98,7 @@ class DeepLIIFModel(InferenceModel):
         model.eval()
         return model
 
-    @property
-    def seg_key(self) -> str:
-        return f"G{self.opt.mod_id_seg}"
-
-    @property
-    def marker_key(self) -> str | None:
+    def _marker_generator_key(self) -> str | None:
         """Return the generator key that corresponds to the Marker modality."""
         for idx, mod_name in enumerate(self.opt.modalities_names):
             if mod_name == "Marker":
@@ -166,36 +161,23 @@ class DeepLIIFModel(InferenceModel):
     def forward(
         self,
         images: List[Image.Image],
-        return_modalities: bool = False,
-    ) -> List[Dict[str, Image.Image]]:
+    ) -> List[ModelOutput]:
         """Run the full DeepLIIF pipeline on a batch of RGB images.
 
-        Args:
-            images: List of equally-sized RGB PIL images.
-            return_modalities: If True, include all G1..G4 modality images in
-                each result dict.  Otherwise only the Marker (G4) and final
-                segmentation (G5) images are returned.
-
         Returns:
-            A list of result dicts, one per input image.  Each dict contains
-            at least the keys ``G5`` and ``G4`` (when Marker is present).
+            A list of :class:`ModelOutput`, one per input image.  The marker
+            image is included when the model has a Marker modality.
         """
         if not images:
             return []
 
         gens, seg_tensor = self.forward_tensors(images)
-        marker_key = self.marker_key
-        results: List[Dict[str, Image.Image]] = []
+        marker_key = self._marker_generator_key()
+        results: List[ModelOutput] = []
         for b in range(seg_tensor.size(0)):
-            res: Dict[str, Image.Image] = {}
-            if return_modalities:
-                for i in range(1, self.opt.modalities_no + 1):
-                    key = f"G{i}"
-                    res[key] = tensor_to_pil(gens[key][b])
-            elif marker_key is not None:
-                res[marker_key] = tensor_to_pil(gens[marker_key][b])
-
-            res[self.seg_key] = tensor_to_pil(seg_tensor[b])
-            results.append(res)
-
+            marker = None
+            if marker_key is not None:
+                marker = tensor_to_pil(gens[marker_key][b])
+            seg = tensor_to_pil(seg_tensor[b])
+            results.append(ModelOutput(segmentation=seg, marker=marker))
         return results

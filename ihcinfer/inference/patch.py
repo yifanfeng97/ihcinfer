@@ -12,13 +12,13 @@ from PIL import Image
 T = TypeVar("T")
 R = TypeVar("R")
 
-from ..models import DeepLIIFModel, InferenceModel
+from ..models import DeepLIIFModel, InferenceModel, ModelOutput
 from ..models.device import resolve_device
 from ..prep import blank_scoring, is_blank_patch
 from ..scoring import compute_scoring
 
 
-# User-friendly output keys.  The raw model still uses internal G4/G5 names.
+# Output keys used in the public images dictionary.
 SEG_KEY = "segmentation"
 MARKER_KEY = "marker"
 
@@ -89,23 +89,13 @@ class PatchInference:
         self.model = model
         self.model_dir = getattr(model, "model_dir", None)
 
-    @property
-    def seg_key(self) -> str:
-        """User-facing key for the final segmentation image."""
-        return SEG_KEY
-
-    @property
-    def marker_key(self) -> str | None:
-        """User-facing key for the inferred marker image."""
-        return MARKER_KEY
-
     def run(
         self,
         patches: List[Image.Image],
         resolution: str | None = None,
         return_marker: bool = False,
         return_images: bool = True,
-    ) -> List[Tuple[dict, dict]]:
+    ) -> List[Tuple[Dict[str, Image.Image], Dict[str, int | float]]]:
         """Run inference and scoring on *patches*.
 
         Blank patches are skipped by the model and receive zero scoring.
@@ -130,10 +120,6 @@ class PatchInference:
         tile_size = patches[0].width
         resolution = resolution or _resolution_for_tile(tile_size)
 
-        # Internal model keys are G4/G5; we expose friendly names to callers.
-        model_seg_key = self.model.seg_key
-        model_marker_key = self.model.marker_key
-
         nonblank_indices: List[int] = []
         nonblank_patches: List[Image.Image] = []
         for idx, img in enumerate(patches):
@@ -143,33 +129,28 @@ class PatchInference:
             nonblank_patches.append(img)
 
         if return_images:
-            raw_results = self.model.forward(nonblank_patches, return_modalities=False)
+            model_outputs: List[ModelOutput] = self.model.forward(nonblank_patches)
+            raw_iter = iter(model_outputs)
         else:
             seg_arrays = self.model.forward_arrays(nonblank_patches)
+            raw_iter = iter(seg_arrays)  # type: ignore[assignment]
 
-        out: List[Tuple[dict, dict]] = [({}, blank_scoring()) for _ in patches]
-        for idx, item in zip(nonblank_indices, raw_results if return_images else seg_arrays):
+        out: List[Tuple[Dict[str, Image.Image], Dict[str, int | float]]] = [
+            ({}, blank_scoring()) for _ in patches
+        ]
+        for idx in nonblank_indices:
             if return_images:
-                raw = item  # type: ignore[assignment]
-                seg = raw.get(model_seg_key)
-                marker = (
-                    raw.get(model_marker_key)
-                    if (return_marker and model_marker_key)
-                    else None
-                )
-                scoring = (
-                    compute_scoring(seg, marker, resolution=resolution)
-                    if seg is not None
-                    else blank_scoring()
-                )
+                output = next(raw_iter)
+                seg = output.segmentation
+                marker = output.marker if (return_marker and output.marker is not None) else None
+                scoring = compute_scoring(seg, marker, resolution=resolution)
 
                 images: Dict[str, Image.Image] = {}
-                if seg is not None:
-                    images[self.seg_key] = seg
-                if return_marker and marker is not None:
-                    images[self.marker_key] = marker  # type: ignore[index]
+                images[SEG_KEY] = seg
+                if marker is not None:
+                    images[MARKER_KEY] = marker
             else:
-                seg = item  # type: ignore[assignment]
+                seg = next(raw_iter)
                 scoring = compute_scoring(seg, None, resolution=resolution)
                 images = {}
 
