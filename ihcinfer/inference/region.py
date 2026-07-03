@@ -14,7 +14,7 @@ from .patch import PatchInference, _run_batches_adaptive
 
 
 class RegionInference:
-    """Run DeepLIIF inference on one WSI region in batched tiles."""
+    """Run inference on one WSI region in batched tiles."""
 
     def __init__(self, patch_infer: PatchInference) -> None:
         self.patch_infer = patch_infer

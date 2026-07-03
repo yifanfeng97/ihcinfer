@@ -16,6 +16,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 
+from .base import InferenceModel
 from .options import DeepLIIFOptions
 
 
@@ -61,7 +62,7 @@ def tensor_to_pil(tensor: torch.Tensor) -> Image.Image:
     return Image.fromarray(arr)
 
 
-class DeepLIIFModel:
+class DeepLIIFModel(InferenceModel):
     """Load and run DeepLIIF TorchScript checkpoints directly.
 
     Args:
@@ -101,6 +102,7 @@ class DeepLIIFModel:
     def seg_key(self) -> str:
         return f"G{self.opt.mod_id_seg}"
 
+    @property
     def marker_key(self) -> str | None:
         """Return the generator key that corresponds to the Marker modality."""
         for idx, mod_name in enumerate(self.opt.modalities_names):
@@ -182,7 +184,7 @@ class DeepLIIFModel:
             return []
 
         gens, seg_tensor = self.forward_tensors(images)
-        marker_key = self.marker_key()
+        marker_key = self.marker_key
         results: List[Dict[str, Image.Image]] = []
         for b in range(seg_tensor.size(0)):
             res: Dict[str, Image.Image] = {}

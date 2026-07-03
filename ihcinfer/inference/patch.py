@@ -1,4 +1,4 @@
-"""Patch-level DeepLIIF inference and scoring."""
+"""Patch-level IHC inference and scoring."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from PIL import Image
 T = TypeVar("T")
 R = TypeVar("R")
 
-from ..models import DeepLIIFModel
+from ..models import DeepLIIFModel, InferenceModel
 from ..models.device import resolve_device
 from ..prep import blank_scoring, is_blank_patch
 from ..scoring import compute_scoring
@@ -70,16 +70,24 @@ def _run_batches_adaptive(
 
 
 class PatchInference:
-    """Run DeepLIIF inference on a batch of equally-sized RGB patches."""
+    """Run inference on a batch of equally-sized RGB patches."""
 
     def __init__(
         self,
-        model_dir: str,
+        model_dir: str | None = None,
+        *,
+        model: InferenceModel | None = None,
         gpu_ids: List[int] | None = None,
     ) -> None:
-        self.model_dir = model_dir
-        self.device = resolve_device(gpu_ids or [])
-        self.model = DeepLIIFModel(model_dir, self.device)
+        if model is not None and model_dir is not None:
+            raise ValueError("Specify either model_dir or model, not both")
+        if model is None:
+            if model_dir is None:
+                raise ValueError("One of model_dir or model is required")
+            device = resolve_device(gpu_ids or [])
+            model = DeepLIIFModel(model_dir, device)
+        self.model = model
+        self.model_dir = getattr(model, "model_dir", None)
 
     @property
     def seg_key(self) -> str:
@@ -124,7 +132,7 @@ class PatchInference:
 
         # Internal model keys are G4/G5; we expose friendly names to callers.
         model_seg_key = self.model.seg_key
-        model_marker_key = self.model.marker_key()
+        model_marker_key = self.model.marker_key
 
         nonblank_indices: List[int] = []
         nonblank_patches: List[Image.Image] = []

@@ -17,6 +17,8 @@ import numpy as np
 import torch
 from PIL import Image
 
+from ..models import DeepLIIFModel, InferenceModel
+from ..models.device import resolve_device
 from ..outputs import (
     blend_heatmap_overlay,
     build_heatmap,
@@ -261,26 +263,41 @@ class WSIResult:
 
 
 class SlideInference:
-    """Run DeepLIIF inference on a whole-slide image in batched patches."""
+    """Run IHC inference on a whole-slide image in batched patches."""
 
     def __init__(
         self,
-        model_dir: str,
+        model_dir: str | None = None,
+        *,
+        model: InferenceModel | None = None,
         gpu_ids: list[int] | None = [0],
         batch_size: int = 16,
         image_format: str = "jpg",
         overlay_thickness: int = 2,
         overlay_alpha: float = 0.4,
     ) -> None:
-        self.model_dir = os.path.abspath(model_dir)
+        if model is not None and model_dir is not None:
+            raise ValueError("Specify either model_dir or model, not both")
+        if model is None:
+            if model_dir is None:
+                raise ValueError("One of model_dir or model is required")
+            self.model_dir = os.path.abspath(model_dir)
+            gpu_ids = gpu_ids if gpu_ids is not None else [0]
+            model = DeepLIIFModel(self.model_dir, resolve_device(gpu_ids))
+        else:
+            self.model_dir = getattr(model, "model_dir", None)
+
         self.batch_size = batch_size
         self.image_format = image_format
         self.overlay_thickness = overlay_thickness
         self.overlay_alpha = overlay_alpha
 
-        gpu_ids = gpu_ids if gpu_ids is not None else [0]
-        self._patch_infer = PatchInference(model_dir, gpu_ids=gpu_ids)
+        self._patch_infer = PatchInference(model=model)
         self._region_infer = RegionInference(self._patch_infer)
+
+    @property
+    def model(self) -> InferenceModel:
+        return self._patch_infer.model
 
     @property
     def seg_key(self) -> str:
