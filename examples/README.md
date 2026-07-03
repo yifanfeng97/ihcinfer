@@ -53,16 +53,18 @@ uv run python examples/infer_patch.py \
     --save_marker
 ```
 
-## Whole-slide inference
+## Whole-slide IHC inference
 
-Run on a whole-slide image (SVS, KFB, TIFF, etc.):
+Run on an IHC whole-slide image (SVS, KFB, TIFF, etc.):
 
 ```bash
-uv run python examples/infer_wsi.py \
+uv run python examples/infer_ihc.py \
     --model_dir /path/to/DeepLIIF_Latest_Model \
     --slide_path /path/to/slide.svs \
-    --output_dir ./wsi_outputs \
-    --batch_size 8
+    --output_dir ./ihc_outputs \
+    --batch_size 8 \
+    --tile_size 512 \
+    --region_size 2048
 ```
 
 Outputs:
@@ -76,4 +78,4 @@ Outputs:
 
 Use `--skip_thumbnail` to skip `he_thumbnail.jpg` and `overlay.jpg` generation.
 
-The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.
+The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), `--tile_size` / `--region_size` to change the patch/region geometry, and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.

@@ -1,4 +1,4 @@
-"""Example: run DeepLIIF inference on a whole-slide image (SVS/KFB/etc.)."""
+"""Example: run DeepLIIF inference on an IHC whole-slide image (SVS/KFB/etc.)."""
 
 from __future__ import annotations
 
@@ -9,12 +9,23 @@ from ihcinfer import SlideInference
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="DeepLIIF inference on a whole-slide image")
+    parser = argparse.ArgumentParser(
+        description="DeepLIIF inference on an IHC whole-slide image"
+    )
     parser.add_argument("--model_dir", required=True, help="Path to DeepLIIF model directory")
-    parser.add_argument("--slide_path", required=True, help="Path to WSI file")
-    parser.add_argument("--output_dir", default="./wsi_outputs", help="Where to save outputs")
+    parser.add_argument("--slide_path", required=True, help="Path to IHC WSI file")
+    parser.add_argument("--output_dir", default="./ihc_outputs", help="Where to save outputs")
     parser.add_argument("--gpu_ids", type=int, nargs="+", default=[0], help="CUDA device ids")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size")
+    parser.add_argument(
+        "--tile_size", type=int, default=512, help="Patch size in pixels (default 512)"
+    )
+    parser.add_argument(
+        "--region_size",
+        type=int,
+        default=2048,
+        help="Region size in pixels; must be a multiple of --tile_size (default 2048)",
+    )
     parser.add_argument(
         "--chunk_size", type=int, default=None, help="WSI chunk read size (default 8192)"
     )
@@ -76,7 +87,7 @@ def main() -> None:
         batch_size=args.batch_size,
     )
 
-    kwargs = {}
+    kwargs = {"tile_size": args.tile_size, "region_size": args.region_size}
     if args.chunk_size is not None:
         kwargs["chunk_size"] = args.chunk_size
 
@@ -97,7 +108,9 @@ def main() -> None:
         **kwargs,
     )
 
-    print("WSI inference complete.")
+    print("IHC WSI inference complete.")
+    print(f"Tile size: {args.tile_size}x{args.tile_size}")
+    print(f"Region size: {args.region_size}x{args.region_size}")
     print(f"CSV: {result.csv_path}")
     print(f"Heatmap: {result.heatmap_path}")
     if result.thumbnail_path:

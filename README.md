@@ -118,10 +118,11 @@ PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_custom_vs_original.p
 # region 级对比
 PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_region_inference.py
 
-# WSI 完整流程计时
-uv run python examples/infer_wsi.py \
+# IHC WSI 完整流程计时
+uv run python examples/infer_ihc.py \
   --model_dir /path/to/DeepLIIF_Latest_Model \
   --slide_path /path/to/slide.svs \
-  --output_dir ./wsi_outputs \
-  --gpu_ids 0 --batch_size 8
+  --output_dir ./ihc_outputs \
+  --gpu_ids 0 --batch_size 8 \
+  --tile_size 512 --region_size 2048
 ```
