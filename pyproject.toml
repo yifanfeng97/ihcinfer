@@ -1,13 +1,13 @@
 [project]
 name = "ihcinfer"
 version = "0.1.0"
-description = "Fast patch-based IHC inference library on whole-slide images (SVS/KFB)"
+description = "Fast patch-based immunohistochemistry (IHC) inference library for whole-slide images (SVS/KFB), powered by DeepLIIF"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     { name = "Yifan Feng" }
 ]
-keywords = ["DeepLIIF", "IHC", "WSI", "SVS", "KFB", "segmentation"]
+keywords = ["DeepLIIF", "IHC", "immunohistochemistry", "WSI", "SVS", "KFB", "segmentation"]
 
 dependencies = [
     "torch>=2.0,<3.0",
