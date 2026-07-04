@@ -1,7 +1,10 @@
-"""Benchmark: custom ihcinfer inference vs. original DeepLIIF.
+"""Benchmark: ihcinfer patch inference vs. original DeepLIIF.
 
 Run with:
-    uv run python benchmarks/bench_custom_vs_original.py [--device cpu|cuda:0]
+    PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_patch_vs_original.py [--device cpu|cuda:0]
+
+If --model_dir is omitted, the pretrained DeepLIIF model is downloaded automatically
+on first use.
 """
 
 from __future__ import annotations
@@ -18,7 +21,6 @@ from deepliif.postprocessing import compute_final_results
 from ihcinfer import IHCAnalyzer
 from ihcinfer.models import DeepLIIFModel
 
-MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 PATCH_DIR = Path(__file__).resolve().parent.parent / "tests" / "data" / "patches"
 
 
@@ -27,20 +29,20 @@ def load_patches(n: int = 4):
     return [Image.open(p).convert("RGB") for p in paths]
 
 
-def load_original(device):
+def load_original(model_dir: str | None, device):
     """Load original DeepLIIF nets and return (opt, nets, load_time)."""
-    opt = get_opt(MODEL_DIR)
+    opt = get_opt(model_dir)
     opt.use_dp = False
     t0 = time.perf_counter()
-    nets = init_nets(MODEL_DIR, eager_mode=False, opt=opt, force_device=device)
+    nets = init_nets(model_dir, eager_mode=False, opt=opt, force_device=device)
     load_time = time.perf_counter() - t0
     return opt, nets, load_time
 
 
-def load_custom(device):
+def load_custom(model_dir: str | None, device):
     """Load custom ihcinfer model and return (model, load_time)."""
     t0 = time.perf_counter()
-    model = DeepLIIFModel(MODEL_DIR, device)
+    model = DeepLIIFModel(model_dir, device)
     load_time = time.perf_counter() - t0
     return model, load_time
 
@@ -83,7 +85,12 @@ def bench_ihcinfer_full(patches, inf):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Benchmark custom vs original DeepLIIF")
+    parser = argparse.ArgumentParser(description="Benchmark ihcinfer patch inference vs original DeepLIIF")
+    parser.add_argument(
+        "--model_dir",
+        default=None,
+        help="Path to DeepLIIF model directory (auto-downloaded if omitted)",
+    )
     parser.add_argument(
         "--device",
         type=str,
@@ -98,25 +105,25 @@ def main():
     patches = load_patches(n=4)
     n = len(patches)
     print(f"Benchmarking on {n} patches ({patches[0].size[0]}x{patches[0].size[1]})")
-    print(f"Model: {MODEL_DIR}")
+    print(f"Model: {args.model_dir or '<auto-download>'}")
     print(f"Device: {device}\n")
 
-    opt, nets, t_load_orig = load_original(device)
-    model, t_load_fast = load_custom(device)
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=gpu_ids, batch_size=len(patches))
+    opt, nets, t_load_orig = load_original(args.model_dir, device)
+    model, t_load_fast = load_custom(args.model_dir, device)
+    inf = IHCAnalyzer(model_dir=args.model_dir, gpu_ids=gpu_ids, batch_size=len(patches))
 
     print(f"DeepLIIF original model load: {t_load_orig:.2f}s")
-    print(f"ihcinfer model load:      {t_load_fast:.2f}s\n")
+    print(f"ihcinfer model load:          {t_load_fast:.2f}s\n")
 
     t_orig_raw = bench_original_raw(patches, opt, nets)
     t_fast_raw = bench_ihcinfer_raw(patches, model)
     t_orig_full = bench_original_full(patches, opt, nets)
     t_fast_full = bench_ihcinfer_full(patches, inf)
 
-    print(f"DeepLIIF original raw inference:  {t_orig_raw:.2f}s ({t_orig_raw/n:.2f}s/patch)")
-    print(f"ihcinfer custom raw inference: {t_fast_raw:.2f}s ({t_fast_raw/n:.2f}s/patch)")
-    print(f"DeepLIIF original full pipeline:  {t_orig_full:.2f}s ({t_orig_full/n:.2f}s/patch)")
-    print(f"ihcinfer custom full pipeline: {t_fast_full:.2f}s ({t_fast_full/n:.2f}s/patch)")
+    print(f"DeepLIIF original raw inference: {t_orig_raw:.2f}s ({t_orig_raw/n:.2f}s/patch)")
+    print(f"ihcinfer raw inference:          {t_fast_raw:.2f}s ({t_fast_raw/n:.2f}s/patch)")
+    print(f"DeepLIIF original full pipeline: {t_orig_full:.2f}s ({t_orig_full/n:.2f}s/patch)")
+    print(f"ihcinfer full pipeline:          {t_fast_full:.2f}s ({t_fast_full/n:.2f}s/patch)")
 
     print("\n--- Summary (inference only) ---")
     print(f"Raw inference speedup:  {t_orig_raw/t_fast_raw:.2f}x")

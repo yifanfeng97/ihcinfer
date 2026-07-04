@@ -139,18 +139,20 @@ uv run pytest tests/ -v
 
 本次重构后在 WSI 主流程启用了 scoring-only 快速路径：`_PatchBuffer` 在计算 scoring 时不再生成 seg/marker PIL 图片，进一步降低了 host 内存峰值，同时保持 patch/region 可视化路径不变。完整流程在 GPU 下提升最明显，主要因为 ihcinfer 把推理和后处理串得更紧凑，减少了原始 DeepLIIF pipeline 中的数据流转开销；WSI 场景下还通过 tissue mask 预过滤、chunk 批量读取、跨 chunk 的 patch buffer 以及 scoring-only 路径进一步减少冗余工作。
 
-复现方式（需要原始 DeepLIIF 仓库在 `PYTHONPATH` 中）：
+复现方式（需要原始 DeepLIIF 仓库在 `PYTHONPATH` 中；不指定 `--model_dir` 时会自动下载模型）：
 
 ```bash
 # patch 级对比
-PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_custom_vs_original.py --device cuda:0
+PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_patch_vs_original.py --device cuda:0
 
 # region 级对比
 PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_region_inference.py
 
-# IHC WSI 完整流程计时
+# 50 张 WSI patch 对比（用于 README 中 WSI 加速比推算）
+PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_wsi_50_vs_original.py
+
+# IHC WSI 完整流程计时（省略 --model_dir 则首次自动下载模型）
 uv run python examples/infer_ihc.py \
-  --model_dir /path/to/DeepLIIF_Latest_Model \
   --slide_path /path/to/slide.svs \
   --output_dir ./ihc_outputs \
   --gpu_ids 0 --batch_size 8 \

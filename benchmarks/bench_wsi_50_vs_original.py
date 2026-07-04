@@ -1,11 +1,15 @@
 """Benchmark: ihcinfer WSI scoring-only path vs original DeepLIIF sequential.
 
 Run with:
-    uv run python outputs/bench_wsi_50_vs_original.py
+    PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_wsi_50_vs_original.py
+
+If --model_dir is omitted, the pretrained DeepLIIF model is downloaded automatically
+on first use.
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import numpy as np
@@ -18,8 +22,6 @@ from ihcinfer import IHCAnalyzer
 from ihcinfer.prep import TissueSegmenter
 from ihcinfer.readers import create_reader
 
-MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
-SVS = "tests/data/slides/98140-6 CD3.svs"
 PATCH_SIZE = 512
 NUM_PATCHES = 50
 
@@ -31,7 +33,6 @@ def sample_tissue_patches(slide_path: str, num_patches: int = NUM_PATCHES):
     with create_reader(slide_path) as reader:
         width, height = reader.width, reader.height
         patches = []
-        coords = []
         for y in range(0, height - PATCH_SIZE + 1, PATCH_SIZE):
             for x in range(0, width - PATCH_SIZE + 1, PATCH_SIZE):
                 if not tissue_mask.contains_patch(x, y, PATCH_SIZE, PATCH_SIZE, min_ratio=0.05):
@@ -51,11 +52,11 @@ def sample_tissue_patches(slide_path: str, num_patches: int = NUM_PATCHES):
     return images
 
 
-def bench_original_sequential(patches):
+def bench_original_sequential(model_dir: str | None, patches):
     device = torch.device("cuda:0")
-    opt = get_opt(MODEL_DIR)
+    opt = get_opt(model_dir)
     opt.use_dp = False
-    nets = init_nets(MODEL_DIR, eager_mode=False, opt=opt, force_device=device)
+    nets = init_nets(model_dir, eager_mode=False, opt=opt, force_device=device)
     seg_key = f"G{opt.mod_id_seg}"
 
     t0 = time.perf_counter()
@@ -72,16 +73,16 @@ def bench_original_sequential(patches):
     return elapsed
 
 
-def bench_ihcinfer_scoring_only(patches):
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
+def bench_ihcinfer_scoring_only(model_dir: str | None, patches):
+    inf = IHCAnalyzer(model_dir=model_dir, gpu_ids=[0], batch_size=16)
     t0 = time.perf_counter()
     inf._patch_infer.run(patches, return_images=False)
     elapsed = time.perf_counter() - t0
     return elapsed
 
 
-def bench_ihcinfer_full(patches):
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[0], batch_size=16)
+def bench_ihcinfer_full(model_dir: str | None, patches):
+    inf = IHCAnalyzer(model_dir=model_dir, gpu_ids=[0], batch_size=16)
     t0 = time.perf_counter()
     inf._run_on_image_patches(patches)
     elapsed = time.perf_counter() - t0
@@ -89,12 +90,31 @@ def bench_ihcinfer_full(patches):
 
 
 def main():
-    patches = sample_tissue_patches(SVS, NUM_PATCHES)
+    parser = argparse.ArgumentParser(description="Benchmark ihcinfer WSI scoring vs original DeepLIIF")
+    parser.add_argument(
+        "--model_dir",
+        default=None,
+        help="Path to DeepLIIF model directory (auto-downloaded if omitted)",
+    )
+    parser.add_argument(
+        "--slide_path",
+        default="tests/data/slides/98140-6 CD3.svs",
+        help="Path to IHC whole-slide image",
+    )
+    parser.add_argument(
+        "--num_patches",
+        type=int,
+        default=NUM_PATCHES,
+        help="Number of tissue patches to sample",
+    )
+    args = parser.parse_args()
+
+    patches = sample_tissue_patches(args.slide_path, args.num_patches)
     n = len(patches)
 
-    t_orig = bench_original_sequential(patches)
-    t_fast_scoring = bench_ihcinfer_scoring_only(patches)
-    t_fast_full = bench_ihcinfer_full(patches)
+    t_orig = bench_original_sequential(args.model_dir, patches)
+    t_fast_scoring = bench_ihcinfer_scoring_only(args.model_dir, patches)
+    t_fast_full = bench_ihcinfer_full(args.model_dir, patches)
 
     print(f"Original DeepLIIF sequential full pipeline ({n} patches): {t_orig:.2f}s ({t_orig/n:.2f}s/patch)")
     print(f"ihcinfer scoring-only ({n} patches):                    {t_fast_scoring:.2f}s ({t_fast_scoring/n:.2f}s/patch)")

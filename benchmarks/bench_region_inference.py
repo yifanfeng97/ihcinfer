@@ -1,11 +1,15 @@
 """Benchmark: ihcinfer region inference vs. original DeepLIIF sequential tiles.
 
 Run with:
-    uv run python benchmarks/bench_region_inference.py
+    PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_region_inference.py
+
+If --model_dir is omitted, the pretrained DeepLIIF model is downloaded automatically
+on first use.
 """
 
 from __future__ import annotations
 
+import argparse
 import time
 
 import torch
@@ -17,8 +21,6 @@ from ihcinfer import IHCAnalyzer
 from ihcinfer.prep import TissueSegmenter
 from ihcinfer.readers import create_reader
 
-MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
-SVS = "tests/data/slides/98140-6 CD3.svs"
 CPU = torch.device("cpu")
 PATCH_SIZE = 512
 REGION_SIZE = 1024
@@ -47,8 +49,8 @@ def tile_region(region_img: Image.Image, patch_size: int = PATCH_SIZE):
     return tiles
 
 
-def bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio: float = 0.0):
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=4)
+def bench_fast_region(model_dir: str | None, region_img, tissue_mask, x, y, tissue_min_ratio: float = 0.0):
+    inf = IHCAnalyzer(model_dir=model_dir, gpu_ids=[], batch_size=4)
     t0 = time.perf_counter()
     records, _ = inf.infer_region(
         region_img,
@@ -63,10 +65,10 @@ def bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio: float = 0
     return elapsed, len(records)
 
 
-def bench_original_sequential(region_img, x_offset, y_offset):
-    opt = get_opt(MODEL_DIR)
+def bench_original_sequential(model_dir: str | None, region_img):
+    opt = get_opt(model_dir)
     opt.use_dp = False
-    nets = init_nets(MODEL_DIR, eager_mode=False, opt=opt, force_device=CPU)
+    nets = init_nets(model_dir, eager_mode=False, opt=opt, force_device=CPU)
     tiles = tile_region(region_img)
     seg_key = f"G{opt.mod_id_seg}"
 
@@ -85,23 +87,36 @@ def bench_original_sequential(region_img, x_offset, y_offset):
 
 
 def main():
-    print("Segmenting tissue...")
-    tissue_mask = TissueSegmenter(seg_level="auto").segment(SVS)
+    parser = argparse.ArgumentParser(description="Benchmark ihcinfer region inference vs original DeepLIIF")
+    parser.add_argument(
+        "--model_dir",
+        default=None,
+        help="Path to DeepLIIF model directory (auto-downloaded if omitted)",
+    )
+    parser.add_argument(
+        "--slide_path",
+        default="tests/data/slides/98140-6 CD3.svs",
+        help="Path to IHC whole-slide image",
+    )
+    args = parser.parse_args()
 
-    with create_reader(SVS) as reader:
+    print("Segmenting tissue...")
+    tissue_mask = TissueSegmenter(seg_level="auto").segment(args.slide_path)
+
+    with create_reader(args.slide_path) as reader:
         x, y, w, h = find_first_tissue_region(tissue_mask, reader.width, reader.height, REGION_SIZE)
         region_arr = reader.read((x, y, w, h))
         region_img = Image.fromarray(region_arr)
 
-    print(f"Region: ({x}, {y}, {w}, {h}) from {SVS}\n")
+    print(f"Region: ({x}, {y}, {w}, {h}) from {args.slide_path}\n")
 
-    fast_elapsed_all, fast_records_all = bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio=0.0)
+    fast_elapsed_all, fast_records_all = bench_fast_region(args.model_dir, region_img, tissue_mask, x, y, tissue_min_ratio=0.0)
     print(f"ihcinfer infer_region ({fast_records_all} tiles, no tissue filter): {fast_elapsed_all:.2f}s")
 
-    fast_elapsed_filt, fast_records_filt = bench_fast_region(region_img, tissue_mask, x, y, tissue_min_ratio=0.05)
+    fast_elapsed_filt, fast_records_filt = bench_fast_region(args.model_dir, region_img, tissue_mask, x, y, tissue_min_ratio=0.05)
     print(f"ihcinfer infer_region ({fast_records_filt} tiles, min_ratio=0.05): {fast_elapsed_filt:.2f}s")
 
-    orig_elapsed, orig_tiles = bench_original_sequential(region_img, x, y)
+    orig_elapsed, orig_tiles = bench_original_sequential(args.model_dir, region_img)
     print(f"DeepLIIF original sequential ({orig_tiles} tiles): {orig_elapsed:.2f}s")
 
     print("\n--- Summary ---")
