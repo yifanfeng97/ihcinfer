@@ -100,3 +100,50 @@ Outputs:
 Use `--skip_thumbnail` to skip `he_thumbnail.jpg` and `overlay.jpg` generation.
 
 The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), `--patch_size` / `--region_size` to change the patch/region geometry, and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.
+
+## Tissue segmentation
+
+Segment tissue from an IHC whole-slide image or a regular image.  This does **not**
+need a DeepLIIF model.
+
+```bash
+uv run python examples/segment_tissue.py \
+    --input "tests/data/slides/98140-6 CD3.svs" \
+    --output_dir ./tissue_mask \
+    --overlay
+```
+
+Outputs:
+
+- `mask.png` — binary tissue mask at the segmentation level
+- `overlay.png` — red tissue overlay on a thumbnail (if `--overlay`)
+
+Add `--mode clam` to use the CLAM-style H&E segmenter instead of the default IHC mode.
+
+## Unified CLI
+
+After installing the package, a single `ihcinfer` command is available with three
+subcommands: `patch`, `ihc`, and `segment`.
+
+```bash
+# Show all subcommands
+ihcinfer --help
+
+# Patch inference
+ihcinfer patch \
+    --input tests/data/patches/22_2.png \
+    --output_dir ./patch_outputs
+
+# WSI inference
+ihcinfer ihc \
+    --slide_path /path/to/slide.svs \
+    --output_dir ./ihc_outputs \
+    --gpu_ids 0 \
+    --batch_size 8
+
+# Tissue segmentation
+ihcinfer segment \
+    --input "tests/data/slides/98140-6 CD3.svs" \
+    --output_dir ./tissue_mask \
+    --overlay
+```

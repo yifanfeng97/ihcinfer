@@ -56,12 +56,28 @@ analyzer = IHCAnalyzer(model_dir="/path/to/model", auto_download=False)
 export IHCINFER_MODEL_URL="https://example.com/DeepLIIF_Latest_Model.zip"
 ```
 
+## 命令行工具
+
+安装后会提供 `ihcinfer` 命令，包含三个子命令：
+
+```bash
+# patch 推理
+ihcinfer patch --input tests/data/patches/22_2.png --output_dir ./patch_outputs
+
+# WSI 推理
+ihcinfer ihc --slide_path /path/to/slide.svs --output_dir ./ihc_outputs --gpu_ids 0
+
+# 组织分割（无需模型）
+ihcinfer segment --input "tests/data/slides/98140-6 CD3.svs" --output_dir ./tissue_mask --overlay
+```
+
 ## 项目结构
 
 ```
 ihcinfer/
 ├── ihcinfer/
 │   ├── __init__.py       # 公共 API：IHCAnalyzer, segment_tissue
+│   ├── cli.py            # ihcinfer 命令行入口
 │   ├── inference/        # 推理入口（IHCAnalyzer / PatchInference / RegionInference）
 │   ├── models/           # DeepLIIF 模型加载与运行
 │   ├── prep/             # 切片、组织 mask、空白 patch 过滤
