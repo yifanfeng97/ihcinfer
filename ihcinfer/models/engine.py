@@ -17,6 +17,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 from .base import InferenceModel, ModelOutput
+from .download import default_cache_dir, download_model, is_model_complete
 from .options import DeepLIIFOptions
 
 
@@ -70,8 +71,18 @@ class DeepLIIFModel(InferenceModel):
         device: ``torch.device`` on which to run inference.
     """
 
-    def __init__(self, model_dir: str, device: torch.device) -> None:
+    def __init__(
+        self,
+        model_dir: str | None,
+        device: torch.device,
+        *,
+        auto_download: bool = True,
+    ) -> None:
         self.device = device
+        if model_dir is None:
+            model_dir = str(default_cache_dir())
+        if auto_download and not is_model_complete(model_dir):
+            model_dir = str(download_model(model_dir))
         self.opt = DeepLIIFOptions(model_dir)
         if self.opt.model not in ("DeepLIIF", "DeepLIIFKD"):
             raise NotImplementedError(f"Model {self.opt.model!r} is not supported")

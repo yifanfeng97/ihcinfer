@@ -22,11 +22,13 @@ uv sync
 
 ## 快速开始
 
+如果本地没有 DeepLIIF 模型，首次使用时会自动从 Zenodo 下载并缓存到平台默认缓存目录（`~/.cache/ihcinfer/models/DeepLIIF_Latest_model`，或 Windows 下的 `%LOCALAPPDATA%\\ihcinfer\\models\\DeepLIIF_Latest_Model`）。也可以显式指定本地模型目录：
+
 ```python
 from ihcinfer import IHCAnalyzer
 
 analyzer = IHCAnalyzer(
-    model_dir="/path/to/DeepLIIF/model-server/DeepLIIF_Latest_Model",
+    model_dir="/path/to/DeepLIIF/model-server/DeepLIIF_Latest_Model",  # 可选，省略则自动下载/缓存
     gpu_ids=[0],
     batch_size=16,
 )
@@ -40,6 +42,18 @@ print(result.csv_path)
 print(result.heatmap_path)
 print(f"Region samples: {len(result.region_sample_paths) // 2}")
 print(f"Patch samples: {len(result.patch_sample_dirs)}")
+```
+
+如果不想使用自动下载（例如完全离线环境），可以禁用：
+
+```python
+analyzer = IHCAnalyzer(model_dir="/path/to/model", auto_download=False)
+```
+
+或者通过环境变量更换下载源：
+
+```bash
+export IHCINFER_MODEL_URL="https://example.com/DeepLIIF_Latest_Model.zip"
 ```
 
 ## 项目结构

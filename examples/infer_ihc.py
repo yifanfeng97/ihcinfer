@@ -12,7 +12,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="DeepLIIF inference on an IHC whole-slide image"
     )
-    parser.add_argument("--model_dir", required=True, help="Path to DeepLIIF model directory")
+    parser.add_argument(
+        "--model_dir",
+        default=None,
+        help="Path to DeepLIIF model directory (auto-downloaded if omitted)",
+    )
     parser.add_argument("--slide_path", required=True, help="Path to IHC WSI file")
     parser.add_argument("--output_dir", default="./ihc_outputs", help="Where to save outputs")
     parser.add_argument("--gpu_ids", type=int, nargs="+", default=[0], help="CUDA device ids")
@@ -24,7 +28,7 @@ def main() -> None:
         "--region_size",
         type=int,
         default=2048,
-        help="Region size in pixels; must be a multiple of --tile_size (default 2048)",
+        help="Region size in pixels; must be a multiple of --patch_size (default 2048)",
     )
     parser.add_argument(
         "--chunk_size", type=int, default=None, help="WSI chunk read size (default 8192)"

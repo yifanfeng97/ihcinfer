@@ -280,15 +280,18 @@ class IHCAnalyzer:
         image_format: str = "jpg",
         overlay_thickness: int = 2,
         overlay_alpha: float = 0.4,
+        auto_download: bool = True,
     ) -> None:
         if model is not None and model_dir is not None:
             raise ValueError("Specify either model_dir or model, not both")
         if model is None:
-            if model_dir is None:
-                raise ValueError("One of model_dir or model is required")
-            self.model_dir = os.path.abspath(model_dir)
             gpu_ids = gpu_ids if gpu_ids is not None else [0]
-            model = DeepLIIFModel(self.model_dir, resolve_device(gpu_ids))
+            model = DeepLIIFModel(
+                model_dir,
+                resolve_device(gpu_ids),
+                auto_download=auto_download,
+            )
+            self.model_dir = getattr(model, "model_dir", None)
         else:
             self.model_dir = getattr(model, "model_dir", None)
 

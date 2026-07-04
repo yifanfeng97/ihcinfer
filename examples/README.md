@@ -4,8 +4,9 @@ This directory contains runnable examples for the most common use cases.
 
 ## Requirements
 
-All examples assume you have installed `ihcinfer` and have a DeepLIIF
-TorchScript model directory containing `G1.pt` ... `G4.pt` and `G51.pt` ... `G55.pt`.
+All examples assume you have installed `ihcinfer`.  If a DeepLIIF TorchScript
+model directory is not provided via `--model_dir`, the model will be downloaded
+automatically on first use from the official Zenodo record and cached locally.
 
 You can install the package with:
 
@@ -15,7 +16,16 @@ uv sync
 
 ## Patch inference
 
-Run on one or more PNG/JPEG patches or directories:
+Run on one or more PNG/JPEG patches or directories.  The first run without
+`--model_dir` will download the pretrained model (~3 GB):
+
+```bash
+uv run python examples/infer_patch.py \
+    --input tests/data/patches/22_2.png tests/data/patches \
+    --output_dir ./patch_outputs
+```
+
+To use a local model directory instead:
 
 ```bash
 uv run python examples/infer_patch.py \
@@ -47,7 +57,6 @@ add `--save_marker`:
 
 ```bash
 uv run python examples/infer_patch.py \
-    --model_dir /path/to/DeepLIIF_Latest_Model \
     --input tests/data/patches/22_2.png \
     --output_dir ./patch_outputs \
     --save_marker
@@ -55,7 +64,19 @@ uv run python examples/infer_patch.py \
 
 ## Whole-slide IHC inference
 
-Run on an IHC whole-slide image (SVS, KFB, TIFF, etc.):
+Run on an IHC whole-slide image (SVS, KFB, TIFF, etc.).  The first run without
+`--model_dir` will download the pretrained model (~3 GB):
+
+```bash
+uv run python examples/infer_ihc.py \
+    --slide_path /path/to/slide.svs \
+    --output_dir ./ihc_outputs \
+    --batch_size 8 \
+    --patch_size 512 \
+    --region_size 2048
+```
+
+To use a local model directory:
 
 ```bash
 uv run python examples/infer_ihc.py \
@@ -63,7 +84,7 @@ uv run python examples/infer_ihc.py \
     --slide_path /path/to/slide.svs \
     --output_dir ./ihc_outputs \
     --batch_size 8 \
-    --tile_size 512 \
+    --patch_size 512 \
     --region_size 2048
 ```
 
@@ -78,4 +99,4 @@ Outputs:
 
 Use `--skip_thumbnail` to skip `he_thumbnail.jpg` and `overlay.jpg` generation.
 
-The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), `--tile_size` / `--region_size` to change the patch/region geometry, and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.
+The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), `--patch_size` / `--region_size` to change the patch/region geometry, and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.

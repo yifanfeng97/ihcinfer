@@ -2,7 +2,6 @@
 
 Usage:
     uv run python examples/infer_patch.py \
-        --model_dir /path/to/DeepLIIF_Latest_Model \
         --input patch_1.png patch_2.png \
         --output_dir ./patch_outputs
 
@@ -13,6 +12,7 @@ Outputs per patch (under ``output_dir/{file_stem}/``):
     - scoring.json        : total/positive/negative counts and percent_pos
 
 Optional:
+    --model_dir           : path to a local DeepLIIF model (auto-downloaded if omitted)
     --save_marker         : also save the inferred marker modality
 """
 
@@ -25,7 +25,11 @@ from ihcinfer import IHCAnalyzer
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="DeepLIIF inference on small patches")
-    parser.add_argument("--model_dir", required=True, help="Path to DeepLIIF model directory")
+    parser.add_argument(
+        "--model_dir",
+        default=None,
+        help="Path to DeepLIIF model directory (auto-downloaded if omitted)",
+    )
     parser.add_argument("--input", nargs="+", required=True, help="Patch image file(s) or directory(ies)")
     parser.add_argument("--output_dir", default="./patch_outputs", help="Where to save outputs")
     parser.add_argument("--gpu_ids", type=int, nargs="+", default=None, help="CUDA device ids")
