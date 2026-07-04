@@ -122,28 +122,28 @@ Add `--mode clam` to use the CLAM-style H&E segmenter instead of the default IHC
 
 ## Unified CLI
 
-After installing the package, a single `ihcinfer` command is available with three
-subcommands: `patch`, `ihc`, and `segment`.
+After installing the package, an `ihc` command is available with three
+subcommands: `tissue_seg`, `patch_infer`, and `infer`.
 
 ```bash
 # Show all subcommands
-ihcinfer --help
+ihc --help
+
+# Tissue segmentation
+ihc tissue_seg \
+    --input "tests/data/slides/98140-6 CD3.svs" \
+    --output_dir ./tissue_mask \
+    --overlay
 
 # Patch inference
-ihcinfer patch \
+ihc patch_infer \
     --input tests/data/patches/22_2.png \
     --output_dir ./patch_outputs
 
 # WSI inference
-ihcinfer ihc \
+ihc infer \
     --slide_path /path/to/slide.svs \
     --output_dir ./ihc_outputs \
     --gpu_ids 0 \
     --batch_size 8
-
-# Tissue segmentation
-ihcinfer segment \
-    --input "tests/data/slides/98140-6 CD3.svs" \
-    --output_dir ./tissue_mask \
-    --overlay
 ```

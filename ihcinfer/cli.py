@@ -1,21 +1,21 @@
 """Command-line interface for ihcinfer.
 
-Provides three subcommands:
+The installed command is ``ihc`` and provides three subcommands:
 
-- ``patch``   : run DeepLIIF inference on PNG/JPEG patches.
-- ``ihc``     : run DeepLIIF inference on a whole-slide IHC image.
-- ``segment`` : segment tissue from a WSI or ordinary image.
+- ``ihc tissue_seg``  : segment tissue from a WSI or ordinary image.
+- ``ihc patch_infer`` : run DeepLIIF inference on PNG/JPEG patches.
+- ``ihc infer``       : run DeepLIIF inference on a whole-slide IHC image.
 
 Examples
 --------
+    # Tissue segmentation
+    ihc tissue_seg --input slide.svs --output_dir ./mask_out --overlay
+
     # Patch inference
-    ihcinfer patch --input tests/data/patches/22_2.png --output_dir ./out
+    ihc patch_infer --input tests/data/patches/22_2.png --output_dir ./out
 
     # WSI inference
-    ihcinfer ihc --slide_path slide.svs --output_dir ./out --gpu_ids 0
-
-    # Tissue segmentation
-    ihcinfer segment --input slide.svs --output_dir ./mask_out --overlay
+    ihc infer --slide_path slide.svs --output_dir ./out --gpu_ids 0
 """
 
 from __future__ import annotations
@@ -53,7 +53,39 @@ def _add_model_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _cmd_patch(args: argparse.Namespace) -> int:
+def _cmd_tissue_seg(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Segmenting tissue from {args.input} (mode={args.mode}) ...")
+    mask = segment_tissue(
+        args.input,
+        mode=args.mode,
+        seg_level=args.seg_level,
+    )
+
+    mask_path = output_dir / "mask.png"
+    mask_img = Image.fromarray((mask.mask * 255).astype(np.uint8))
+    mask_img.save(mask_path)
+    print(f"Mask saved: {mask_path} (shape: {mask.mask.shape})")
+
+    bbox = mask.bbox()
+    if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
+        print(f"Tissue bbox (level-0): {bbox}")
+    else:
+        print("Warning: no tissue detected")
+
+    if args.overlay:
+        overlay_path = output_dir / "overlay.png"
+        base = _load_thumbnail(args.input, args.max_size)
+        overlay = _blend_mask_overlay(base, mask_img.resize(base.size, Image.Resampling.NEAREST))
+        overlay.save(overlay_path)
+        print(f"Overlay saved: {overlay_path}")
+
+    return 0
+
+
+def _cmd_patch_infer(args: argparse.Namespace) -> int:
     analyzer = IHCAnalyzer(
         model_dir=args.model_dir,
         gpu_ids=args.gpu_ids,
@@ -70,7 +102,7 @@ def _cmd_patch(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_ihc(args: argparse.Namespace) -> int:
+def _cmd_infer(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -138,48 +170,55 @@ def _blend_mask_overlay(base: Image.Image, mask: Image.Image) -> Image.Image:
     return Image.blend(base, overlay, alpha=0.4)
 
 
-def _cmd_segment(args: argparse.Namespace) -> int:
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Segmenting tissue from {args.input} (mode={args.mode}) ...")
-    mask = segment_tissue(
-        args.input,
-        mode=args.mode,
-        seg_level=args.seg_level,
-    )
-
-    mask_path = output_dir / "mask.png"
-    mask_img = Image.fromarray((mask.mask * 255).astype(np.uint8))
-    mask_img.save(mask_path)
-    print(f"Mask saved: {mask_path} (shape: {mask.mask.shape})")
-
-    bbox = mask.bbox()
-    if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
-        print(f"Tissue bbox (level-0): {bbox}")
-    else:
-        print("Warning: no tissue detected")
-
-    if args.overlay:
-        overlay_path = output_dir / "overlay.png"
-        base = _load_thumbnail(args.input, args.max_size)
-        overlay = _blend_mask_overlay(base, mask_img.resize(base.size, Image.Resampling.NEAREST))
-        overlay.save(overlay_path)
-        print(f"Overlay saved: {overlay_path}")
-
-    return 0
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="ihcinfer",
-        description="Fast IHC inference and tissue segmentation CLI",
+        prog="ihc",
+        description="IHC inference and tissue segmentation CLI",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # patch
+    # tissue_seg
+    tissue_parser = subparsers.add_parser(
+        "tissue_seg",
+        help="Segment tissue from a WSI or ordinary image",
+    )
+    tissue_parser.add_argument(
+        "--input",
+        required=True,
+        help="Path to WSI (SVS/KFB) or image file",
+    )
+    tissue_parser.add_argument(
+        "--output_dir",
+        default="./segment_outputs",
+        help="Where to save the mask (and optional overlay)",
+    )
+    tissue_parser.add_argument(
+        "--mode",
+        choices=["ihc", "clam"],
+        default="ihc",
+        help="Segmentation mode (default: ihc)",
+    )
+    tissue_parser.add_argument(
+        "--seg_level",
+        default="auto",
+        help="WSI pyramid level for segmentation (default: auto)",
+    )
+    tissue_parser.add_argument(
+        "--overlay",
+        action="store_true",
+        help="Also save a red tissue overlay on a thumbnail",
+    )
+    tissue_parser.add_argument(
+        "--max_size",
+        type=int,
+        default=2048,
+        help="Maximum thumbnail edge length for the overlay (default 2048)",
+    )
+    tissue_parser.set_defaults(func=_cmd_tissue_seg)
+
+    # patch_infer
     patch_parser = subparsers.add_parser(
-        "patch",
+        "patch_infer",
         help="Run DeepLIIF inference on PNG/JPEG patches",
     )
     patch_parser.add_argument(
@@ -199,146 +238,107 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Also save the inferred marker modality",
     )
     _add_model_args(patch_parser)
-    patch_parser.set_defaults(func=_cmd_patch)
+    patch_parser.set_defaults(func=_cmd_patch_infer)
 
-    # ihc
-    ihc_parser = subparsers.add_parser(
-        "ihc",
+    # infer
+    infer_parser = subparsers.add_parser(
+        "infer",
         help="Run DeepLIIF inference on an IHC whole-slide image",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--slide_path",
         required=True,
         help="Path to IHC WSI file",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--output_dir",
         default="./ihc_outputs",
         help="Where to save outputs",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--patch_size",
         type=int,
         default=512,
         help="Patch size in pixels (default 512)",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--region_size",
         type=int,
         default=2048,
         help="Region size in pixels; must be a multiple of --patch_size (default 2048)",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--chunk_size",
         type=int,
         default=None,
         help="WSI chunk read size (default 8192)",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--num_region_samples",
         type=int,
         default=2,
         help="Number of region samples to save",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--num_patch_samples",
         type=int,
         default=4,
         help="Number of patch samples to save",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_cmap",
         type=str,
         default="viridis",
         help="Heatmap colormap name",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_vmax",
         type=float,
         default=50.0,
         help="Heatmap color scale upper bound",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_sigma",
         type=float,
         default=0.75,
         help="Gaussian smoothing sigma",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_upscale",
         type=int,
         default=None,
         help="Integer heatmap upscaling factor",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_max_size",
         type=int,
         default=1024,
         help="Maximum heatmap edge length when --heatmap_upscale is not set",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--heatmap_grid_factor",
         type=int,
         default=4,
         help="Grid cells per patch for interpolated heatmap",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--skip_thumbnail",
         action="store_true",
         help="Skip H&E thumbnail and heatmap overlay generation",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--overlay_alpha",
         type=float,
         default=0.4,
         help="Heatmap overlay opacity on H&E thumbnail",
     )
-    ihc_parser.add_argument(
+    infer_parser.add_argument(
         "--save_marker_in_samples",
         action="store_true",
         help="Save marker images in samples",
     )
-    _add_model_args(ihc_parser)
-    ihc_parser.set_defaults(func=_cmd_ihc)
-
-    # segment
-    segment_parser = subparsers.add_parser(
-        "segment",
-        help="Segment tissue from a WSI or ordinary image",
-    )
-    segment_parser.add_argument(
-        "--input",
-        required=True,
-        help="Path to WSI (SVS/KFB) or image file",
-    )
-    segment_parser.add_argument(
-        "--output_dir",
-        default="./segment_outputs",
-        help="Where to save the mask (and optional overlay)",
-    )
-    segment_parser.add_argument(
-        "--mode",
-        choices=["ihc", "clam"],
-        default="ihc",
-        help="Segmentation mode (default: ihc)",
-    )
-    segment_parser.add_argument(
-        "--seg_level",
-        default="auto",
-        help="WSI pyramid level for segmentation (default: auto)",
-    )
-    segment_parser.add_argument(
-        "--overlay",
-        action="store_true",
-        help="Also save a red tissue overlay on a thumbnail",
-    )
-    segment_parser.add_argument(
-        "--max_size",
-        type=int,
-        default=2048,
-        help="Maximum thumbnail edge length for the overlay (default 2048)",
-    )
-    segment_parser.set_defaults(func=_cmd_segment)
+    _add_model_args(infer_parser)
+    infer_parser.set_defaults(func=_cmd_infer)
 
     return parser
 

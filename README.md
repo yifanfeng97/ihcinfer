@@ -58,17 +58,17 @@ export IHCINFER_MODEL_URL="https://example.com/DeepLIIF_Latest_Model.zip"
 
 ## 命令行工具
 
-安装后会提供 `ihcinfer` 命令，包含三个子命令：
+安装后会提供 `ihc` 命令，包含三个子命令：
 
 ```bash
+# 组织分割（无需模型）
+ihc tissue_seg --input "tests/data/slides/98140-6 CD3.svs" --output_dir ./tissue_mask --overlay
+
 # patch 推理
-ihcinfer patch --input tests/data/patches/22_2.png --output_dir ./patch_outputs
+ihc patch_infer --input tests/data/patches/22_2.png --output_dir ./patch_outputs
 
 # WSI 推理
-ihcinfer ihc --slide_path /path/to/slide.svs --output_dir ./ihc_outputs --gpu_ids 0
-
-# 组织分割（无需模型）
-ihcinfer segment --input "tests/data/slides/98140-6 CD3.svs" --output_dir ./tissue_mask --overlay
+ihc infer --slide_path /path/to/slide.svs --output_dir ./ihc_outputs --gpu_ids 0
 ```
 
 ## 项目结构

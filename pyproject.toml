@@ -28,7 +28,7 @@ dev = [
 ]
 
 [project.scripts]
-ihcinfer = "ihcinfer.cli:main"
+ihc = "ihcinfer.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
