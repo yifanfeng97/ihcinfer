@@ -3,11 +3,19 @@ name = "ihcinfer"
 version = "0.1.0"
 description = "Fast patch-based immunohistochemistry (IHC) inference library for whole-slide images (SVS/KFB), powered by DeepLIIF"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     { name = "Yifan Feng" }
 ]
 keywords = ["DeepLIIF", "IHC", "immunohistochemistry", "WSI", "SVS", "KFB", "segmentation"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 
 dependencies = [
     "torch>=2.0,<3.0",
@@ -65,4 +73,5 @@ markers = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "matplotlib>=3.5",
 ]

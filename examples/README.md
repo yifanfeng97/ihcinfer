@@ -1,149 +1,52 @@
-# ihcinfer examples
+# ihcinfer 示例索引
 
-This directory contains runnable examples for the most common use cases.
-
-## Requirements
-
-All examples assume you have installed `ihcinfer`.  If a DeepLIIF TorchScript
-model directory is not provided via `--model_dir`, the model will be downloaded
-automatically on first use from the official Zenodo record and cached locally.
-
-You can install the package with:
+这里集中了 `ihcinfer` 的常用示例与可执行命令。所有脚本都假设你已经安装好包：
 
 ```bash
 uv sync
 ```
 
-## Patch inference
+如果你省略 `--model_dir`，DeepLIIF 模型会在首次使用时自动从 Zenodo 下载（约 3 GB）。
 
-Run on one or more PNG/JPEG patches or directories.  The first run without
-`--model_dir` will download the pretrained model (~3 GB):
+---
 
-```bash
-uv run python examples/infer_patch.py \
-    --input tests/data/patches/22_2.png tests/data/patches \
-    --output_dir ./patch_outputs
-```
-
-To use a local model directory instead:
+## 快速命令
 
 ```bash
-uv run python examples/infer_patch.py \
-    --model_dir /path/to/DeepLIIF_Latest_Model \
-    --input tests/data/patches/22_2.png tests/data/patches \
-    --output_dir ./patch_outputs
-```
-
-The script prints cell-count scoring and writes the following files per patch
-under `./patch_outputs/{file_stem}/`:
-
-```
-22_2/
-├── segmentation.jpg    # final cell segmentation
-├── overlay.jpg         # original patch with red/blue cell contours
-├── cells.json          # per-cell centroid/boundary/positive/size
-└── scoring.json        # total/positive/negative counts and percent_pos
-```
-
-- Red contours = positive cells
-- Blue contours = negative cells
-
-Each patch gets its own directory named after the original file stem
-(e.g. `22_2/`).  If two inputs share the same stem, a suffix is appended
-(e.g. `22_2_1/`).
-
-The inferred marker modality is **not** saved by default.  To also save it,
-add `--save_marker`:
-
-```bash
-uv run python examples/infer_patch.py \
-    --input tests/data/patches/22_2.png \
-    --output_dir ./patch_outputs \
-    --save_marker
-```
-
-## Whole-slide IHC inference
-
-Run on an IHC whole-slide image (SVS, KFB, TIFF, etc.).  The first run without
-`--model_dir` will download the pretrained model (~3 GB):
-
-```bash
-uv run python examples/infer_ihc.py \
-    --slide_path /path/to/slide.svs \
-    --output_dir ./ihc_outputs \
-    --batch_size 8 \
-    --patch_size 512 \
-    --region_size 2048
-```
-
-To use a local model directory:
-
-```bash
-uv run python examples/infer_ihc.py \
-    --model_dir /path/to/DeepLIIF_Latest_Model \
-    --slide_path /path/to/slide.svs \
-    --output_dir ./ihc_outputs \
-    --batch_size 8 \
-    --patch_size 512 \
-    --region_size 2048
-```
-
-Outputs:
-
-- `patch_scoring.csv` — per-patch cell counts
-- `heatmap.jpg` — `percent_pos` heatmap using Gaussian-kernel interpolation on a fine grid (`grid_factor=4` cells per 512×512 patch), resized to fit a 1024 px long edge (default `viridis` colormap, white background, tissue-mask boundary). Use `--heatmap_grid_factor`, `--heatmap_max_size`, `--heatmap_sigma`, or `--heatmap_upscale` to tune appearance.
-- `he_thumbnail.jpg` — low-resolution H&E thumbnail of the whole slide, resized to the same dimensions as `heatmap.jpg`.
-- `overlay.jpg` — translucent heatmap blended over `he_thumbnail.jpg`, same dimensions. Tissue-mask regions carry the heatmap at `--overlay_alpha` opacity (default 0.4); non-tissue regions keep the original H&E thumbnail.
-- `region_samples/` — up to 2 complete `2048×2048` regions selected randomly from all tissue-rich regions; each region is saved under a `{x}_{y}` folder with `overlay.jpg` and `segmentation.jpg`
-- `patch_samples/` — up to 4 sampled patches in standard patch layout
-
-Use `--skip_thumbnail` to skip `he_thumbnail.jpg` and `overlay.jpg` generation.
-
-The pipeline now pre-plans all tissue patches and complete regions from the initial tissue mask, batches patches across chunk boundaries for better GPU utilization, and handles visualization (region/patch samples) in a separate pass. Use `--batch_size` to tune GPU throughput, `--chunk_size` to adjust the WSI read size (default `8192`), `--patch_size` / `--region_size` to change the patch/region geometry, and `--num_region_samples` / `--num_patch_samples` to adjust the number of saved visual samples.
-
-## Tissue segmentation
-
-Segment tissue from an IHC whole-slide image or a regular image.  This does **not**
-need a DeepLIIF model.
-
-```bash
-uv run python examples/segment_tissue.py \
-    --input "tests/data/slides/98140-6 CD3.svs" \
-    --output_dir ./tissue_mask \
-    --overlay
-```
-
-Outputs:
-
-- `mask.png` — binary tissue mask at the segmentation level
-- `overlay.png` — red tissue overlay on a thumbnail (if `--overlay`)
-
-Add `--mode clam` to use the CLAM-style H&E segmenter instead of the default IHC mode.
-
-## Unified CLI
-
-After installing the package, an `ihc` command is available with three
-subcommands: `tissue_seg`, `patch_infer`, and `infer`.
-
-```bash
-# Show all subcommands
-ihc --help
-
-# Tissue segmentation
+# 1. 组织分割（无需模型）
 ihc tissue_seg \
     --input "tests/data/slides/98140-6 CD3.svs" \
     --output_dir ./tissue_mask \
     --overlay
 
-# Patch inference
+# 2. Patch 推理
 ihc patch_infer \
     --input tests/data/patches/22_2.png \
     --output_dir ./patch_outputs
 
-# WSI inference
+# 3. 全片 IHC 推理
 ihc infer \
     --slide_path /path/to/slide.svs \
     --output_dir ./ihc_outputs \
     --gpu_ids 0 \
     --batch_size 8
 ```
+
+---
+
+## 示例脚本
+
+| 脚本 | 功能 | 关键参数 |
+|---|---|---|
+| [`infer_patch.py`](infer_patch.py) | Patch / 目录批量推理 | `--input`, `--output_dir`, `--save_marker` |
+| [`infer_ihc.py`](infer_ihc.py) | 全片 IHC 推理 + 热力图/叠加图 | `--slide_path`, `--batch_size`, `--patch_size`, `--region_size` |
+| [`segment_tissue.py`](segment_tissue.py) | WSI / 图像组织分割 | `--input`, `--output_dir`, `--overlay`, `--mode ihc\|clam` |
+
+---
+
+## 更多资源
+
+- **主 README**：安装、功能概览、架构图、输出图库 — [`../README.md`](../README.md)
+- **CLI 帮助**：`ihc --help`、`ihc tissue_seg --help` 等
+- **性能基准**：[`../benchmarks/`](../benchmarks/)
+- **API 详细说明**：见主 README 的 “Python API” 与 “Advanced Usage” 部分

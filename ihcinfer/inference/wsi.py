@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import random
+import sys
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -81,6 +83,22 @@ def _unique_names(names: list[str]) -> list[str]:
         seen.add(candidate)
         unique.append(candidate)
     return unique
+
+
+def _progress_log(msg: str, progress: bool) -> None:
+    """Print a progress message to stderr when *progress* is enabled."""
+    if progress:
+        print(msg, file=sys.stderr, flush=True)
+
+
+def _progress_tick(index: int, total: int, progress: bool) -> bool:
+    """Return True for the first, last, and roughly every 10% of items."""
+    if not progress or total <= 0:
+        return False
+    if index == 0 or index == total - 1:
+        return True
+    step = max(1, total // 10)
+    return (index + 1) % step == 0
 
 
 def _run_patches_adaptive(
@@ -194,6 +212,11 @@ class _PatchBuffer:
         self._buffer: list[tuple[int, int, int, int, Image.Image]] = []
         self.records: list[dict] = []
         self.scoring_cache: dict[tuple[int, int], dict] = {}
+
+    @property
+    def num_scored(self) -> int:
+        """Number of patches that have already been scored."""
+        return len(self.records)
 
     def add(self, patches: list[tuple[int, int, int, int, Image.Image]]) -> None:
         """Add patches from a chunk and flush any full batches."""
@@ -610,6 +633,7 @@ class IHCAnalyzer:
         heatmap_grid_factor: int = 4,
         skip_thumbnail: bool = False,
         overlay_alpha: float | None = None,
+        progress: bool = False,
     ) -> WSIResult:
         """Run inference on a whole-slide image and produce CSV/heatmap/samples."""
         if region_size % patch_size != 0:
@@ -621,6 +645,7 @@ class IHCAnalyzer:
         image_format = image_format if image_format is not None else self.image_format
         basename = Path(slide_path).stem
 
+        _progress_log(f"Segmenting tissue from {slide_path}...", progress)
         tissue_mask = self.segment_tissue(slide_path)
 
         with create_reader(slide_path) as reader:
@@ -636,6 +661,12 @@ class IHCAnalyzer:
             )
             chunk_map = _group_patches_by_chunk(patches, chunk_size)
 
+            _progress_log(
+                f"Slide dimensions: {width}x{height}; planned {len(patches)} patches "
+                f"across {len(regions)} complete regions.",
+                progress,
+            )
+
             # Preselect random regions for visualization before any inference.
             region_sample_coords: list[tuple[int, int]] = []
             if regions and num_region_samples > 0:
@@ -645,8 +676,14 @@ class IHCAnalyzer:
             patch_reservoir: list[tuple[int, int]] = []
             patch_seen = 0
             buffer = _PatchBuffer(self.batch_size, self._patch_infer)
+            num_chunks = len(chunk_map)
 
-            for (cx, cy) in sorted(chunk_map.keys()):
+            _progress_log(
+                f"Running inference on {num_chunks} chunks (batch_size={self.batch_size})...",
+                progress,
+            )
+
+            for chunk_idx, (cx, cy) in enumerate(sorted(chunk_map.keys())):
                 cw = min(chunk_size, width - cx)
                 ch = min(chunk_size, height - cy)
                 chunk_arr = reader.read((cx, cy, cw, ch))
@@ -666,11 +703,22 @@ class IHCAnalyzer:
                         )
 
                 buffer.add(chunk_patches)
+                if _progress_tick(chunk_idx, num_chunks, progress):
+                    _progress_log(
+                        f"  chunk {chunk_idx + 1}/{num_chunks} @ ({cx}, {cy}) — "
+                        f"{len(chunk_patches)} patches, {buffer.num_scored} scored so far",
+                        progress,
+                    )
 
             all_records, scoring_cache = buffer.finalize()
 
+        _progress_log(
+            f"Inference complete: {len(all_records)} patches scored.", progress
+        )
+
         csv_path = output_dir / "patch_scoring.csv"
         write_patch_csv(all_records, str(csv_path))
+        _progress_log(f"CSV saved: {csv_path}", progress)
 
         # Build the heatmap at patch-grid resolution so each scored patch
         # becomes one cell; resize to ~2048 px on the long edge for a smooth,
@@ -691,6 +739,8 @@ class IHCAnalyzer:
             tissue_mask=tissue_mask,
             grid_factor=heatmap_grid_factor,
         )
+
+        _progress_log(f"Heatmap saved: {heatmap_path}", progress)
 
         thumbnail_path: Path | None = None
         overlay_path: Path | None = None
@@ -715,6 +765,10 @@ class IHCAnalyzer:
                         tissue_mask=tissue_mask,
                     )
                     overlay.save(overlay_path, quality=95)
+                    _progress_log(
+                        f"Thumbnail saved: {thumbnail_path}; overlay saved: {overlay_path}",
+                        progress,
+                    )
             except Exception as exc:
                 warnings.warn(
                     f"Thumbnail/overlay generation failed: {exc}", stacklevel=2
@@ -729,6 +783,9 @@ class IHCAnalyzer:
             image_format,
             save_marker_in_samples,
         )
+        _progress_log(
+            f"Region samples saved: {len(region_paths) // 2}", progress
+        )
 
         patch_dirs = self._visualize_patches(
             patch_reservoir,
@@ -738,6 +795,7 @@ class IHCAnalyzer:
             image_format,
             save_marker_in_samples,
         )
+        _progress_log(f"Patch samples saved: {len(patch_dirs)}", progress)
 
         summary = {
             "num_total": sum(r.get("num_total", 0) for r in all_records),
@@ -747,6 +805,13 @@ class IHCAnalyzer:
         total = summary["num_total"]
         summary["percent_pos"] = (
             100.0 * summary["num_pos"] / total if total > 0 else 0.0
+        )
+
+        _progress_log(
+            f"Summary — total cells: {summary['num_total']}, "
+            f"positive: {summary['num_pos']}, negative: {summary['num_neg']}, "
+            f"percent_pos: {summary['percent_pos']:.2f}%",
+            progress,
         )
 
         return WSIResult(

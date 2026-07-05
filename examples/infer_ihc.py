@@ -80,6 +80,11 @@ def main() -> None:
     parser.add_argument(
         "--save_marker_in_samples", action="store_true", help="Save marker images in samples"
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress progress messages (only print final paths)",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -109,20 +114,26 @@ def main() -> None:
         heatmap_grid_factor=args.heatmap_grid_factor,
         skip_thumbnail=args.skip_thumbnail,
         overlay_alpha=args.overlay_alpha,
+        progress=not args.quiet,
         **kwargs,
     )
 
-    print("IHC WSI inference complete.")
-    print(f"Patch size: {args.patch_size}x{args.patch_size}")
-    print(f"Region size: {args.region_size}x{args.region_size}")
-    print(f"CSV: {result.csv_path}")
-    print(f"Heatmap: {result.heatmap_path}")
-    if result.thumbnail_path:
-        print(f"Thumbnail: {result.thumbnail_path}")
-    if result.overlay_path:
-        print(f"Overlay: {result.overlay_path}")
-    print(f"Region samples: {len(result.region_sample_paths) // 2}")
-    print(f"Patch samples: {len(result.patch_sample_dirs)}")
+    if args.quiet:
+        print("IHC WSI inference complete.")
+        print(f"Patch size: {args.patch_size}x{args.patch_size}")
+        print(f"Region size: {args.region_size}x{args.region_size}")
+        print(f"CSV: {result.csv_path}")
+        print(f"Heatmap: {result.heatmap_path}")
+        if result.thumbnail_path:
+            print(f"Thumbnail: {result.thumbnail_path}")
+        if result.overlay_path:
+            print(f"Overlay: {result.overlay_path}")
+        print(f"Region samples: {len(result.region_sample_paths) // 2}")
+        print(f"Patch samples: {len(result.patch_sample_dirs)}")
+    else:
+        # Progress messages already printed a summary; just echo the key paths.
+        print(f"CSV: {result.csv_path}")
+        print(f"Heatmap: {result.heatmap_path}")
 
 
 if __name__ == "__main__":

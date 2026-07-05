@@ -1,34 +1,176 @@
-# ihcinfer
+<h1 align="center">ihcinfer</h1>
 
-`ihcinfer` 是一个基于 DeepLIIF 的轻量级快速推理库，专门用于大尺寸数字切片（SVS / KFB）的 patch 级批量推理。
+<p align="center">
+  <strong>Fast, patch-based IHC whole-slide inference — powered by DeepLIIF.</strong><br/>
+  From IHC glass slide to cell-counting CSVs, heatmaps, and visual overlays — in one command.
+</p>
 
-PyPI 发行包名为 `ihcinfer`，安装后仍通过 `import ihcinfer` 使用。
+<p align="center">
+  <a href="README_ZH.md">中文</a> ·
+  <a href="#whats-new">What's New</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="#benchmarks">Benchmarks</a>
+</p>
 
-## 目标
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.1.0-3776ab?style=for-the-badge&labelColor=1a1a2e" alt="Version">
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776ab?style=for-the-badge&logo=python&logoColor=white&labelColor=1a1a2e" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-06b6d4?style=for-the-badge&labelColor=1a1a2e" alt="Platform">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-06b6d4?style=for-the-badge&labelColor=1a1a2e" alt="License"></a>
+</p>
 
-- 读取 SVS / KFB 格式全片图像
-- 按 patch 批量推理，提高 GPU 利用率
-- 输出 patch 坐标 + 细胞计数 CSV
-- 可选输出 patch 级分割 mask / 热力图
+<p align="center">
+  <img src="docs/assets/hero.png" alt="ihcinfer pipeline: WSI → tissue mask → patch inference → heatmap overlay" width="90%"/>
+</p>
 
-## 安装
+---
+
+<a name="whats-new"></a>
+## 📰 What's New
+
+- **🚀 Unified `ihc` CLI** — one command for `tissue_seg`, `patch_infer`, and `infer`.
+- **🧫 IHC Tissue Segmentation** — default `ihc` mode optimized for immunohistochemistry backgrounds; `clam` mode for H&E.
+- **⚡ Scoring-only Fast Path** — skip intermediate PIL images during WSI inference to lower memory and boost throughput.
+- **⬇️ Automatic Model Download** — the DeepLIIF TorchScript model is downloaded from Zenodo the first time `model_dir` is omitted.
+- **🧩 Cross-chunk Batch Tiling** — large slides are read in chunks and patches are batched across chunk boundaries for better GPU utilization.
+
+---
+
+`ihcinfer` is a lightweight Python library for batch immunohistochemistry (IHC) inference on SVS / KFB whole-slide images and PNG / JPEG patches. It reorganizes patch buffering, chunk tiling, tissue-mask pre-filtering, and a scoring-only fast path on top of DeepLIIF's TorchScript model, while exposing both a Python API (`IHCAnalyzer`) and a command-line tool (`ihc`).
+
+---
+
+<a name="core-features"></a>
+## ✨ Core Features
+
+| | Feature | Description |
+|---|---|---|
+| 🔬 | **Whole-slide image support** | Native SVS / KFB reading via OpenSlide and custom readers. |
+| 🧩 | **Patch input** | Batch inference on PNG / JPEG patches or directories. |
+| ⚡ | **Batch GPU inference** | Cross-chunk patch buffer improves GPU utilization on large slides. |
+| 📊 | **Quantitative outputs** | Per-patch total / positive cell counts and positive ratios as CSV + coordinates. |
+| 🗺️ | **Visual outputs** | Heatmaps, H&E thumbnails, overlays, region / patch samples. |
+| 🧠 | **Automatic model loading** | DeepLIIF model auto-downloaded from Zenodo when `model_dir` is omitted. |
+| 🧫 | **Tissue segmentation** | Standalone `ihc` / `clam` tissue masks, no model required. |
+| 🚀 | **Dramatic speedups** | Up to **14.79×** faster than original DeepLIIF for the full GPU pipeline. |
+
+---
+
+<a name="what-can-you-do"></a>
+## 🧑‍🔬 What Can You Do With It?
+
+<details>
+<summary><b>🩺 Pathologist / Researcher</b> — Quantify a whole IHC slide</summary>
+<br/>
 
 ```bash
-pip install ihcinfer
-# 或从源码安装
-cd /home/fengyifan/disk/code/ihcinfer
-uv sync
+ihc infer \
+  --slide_path "path/to/CD3.svs" \
+  --output_dir ./ihc_outputs \
+  --gpu_ids 0 \
+  --batch_size 8
 ```
 
-## 快速开始
+Produces `patch_scoring.csv`, `heatmap.jpg`, and `overlay.jpg` for downstream statistical analysis.
 
-如果本地没有 DeepLIIF 模型，首次使用时会自动从 Zenodo 下载并缓存到平台默认缓存目录（`~/.cache/ihcinfer/models/DeepLIIF_Latest_model`，或 Windows 下的 `%LOCALAPPDATA%\\ihcinfer\\models\\DeepLIIF_Latest_Model`）。也可以显式指定本地模型目录：
+</details>
+
+<details>
+<summary><b>🧬 Bioinformatician</b> — Integrate IHC scoring into a pipeline</summary>
+<br/>
+
+```python
+from ihcinfer import IHCAnalyzer
+import pandas as pd
+
+analyzer = IHCAnalyzer(gpu_ids=[0], batch_size=16)
+result = analyzer.infer_wsi(
+    slide_path="path/to/slide.svs",
+    output_dir="./outputs",
+)
+
+df = pd.read_csv(result.csv_path)
+```
+
+`WSIResult` exposes paths to the CSV, heatmap, thumbnail, overlay, and sample directories directly.
+
+</details>
+
+<details>
+<summary><b>💻 Developer</b> — Embed tissue segmentation or patch inference</summary>
+<br/>
+
+```python
+from ihcinfer import segment_tissue
+
+mask = segment_tissue("slide.svs", mode="ihc")
+print(mask.mask.shape)
+```
+
+Patch-level workflow: `ihc patch_infer --input patch.png --output_dir ./out`.
+
+</details>
+
+<details>
+<summary><b>🔒 Offline / HPC User</b> — Disable auto-download and use a local model</summary>
+<br/>
+
+```bash
+export IHCINFER_MODEL_DIR="/path/to/DeepLIIF_Latest_Model"
+ihc infer --slide_path slide.svs --output_dir ./out --model_dir "$IHCINFER_MODEL_DIR"
+```
+
+In Python, set `auto_download=False`.
+
+</details>
+
+---
+
+<a name="supported-platforms"></a>
+## 📋 Supported Platforms & Inputs
+
+| Platform | Python | Notes |
+|---|---|---|
+| Linux | 3.10+ | Primary development and test platform. |
+| Windows | 3.10+ | OpenSlide binaries installed automatically via `openslide-bin`. |
+| macOS | 3.10+ | Requires OpenSlide to be installed on the system. |
+
+| Input type | Formats | Usage |
+|---|---|---|
+| Whole-slide images | SVS, KFB | `ihc infer`, `ihc tissue_seg`, `IHCAnalyzer.infer_wsi()` |
+| Patch images | PNG, JPEG | `ihc patch_infer`, `IHCAnalyzer.infer_patches()` |
+
+**Model**: DeepLIIF TorchScript model (~3 GB). It is downloaded automatically from Zenodo the first time `model_dir` is omitted, or you can point to a local copy.
+
+---
+
+<a name="quick-start"></a>
+## ⚡ 30-Second Quick Start
+
+```bash
+# Install
+pip install ihcinfer
+
+# 1. Tissue segmentation (no model required)
+ihc tissue_seg --input "slide.svs" --output_dir ./tissue_mask --overlay
+
+# 2. Patch inference
+ihc patch_infer --input patch.png --output_dir ./patch_outputs
+
+# 3. Whole-slide IHC inference
+ihc infer --slide_path slide.svs --output_dir ./ihc_outputs --gpu_ids 0
+```
+
+<details>
+<summary><b>🐍 Prefer the Python API?</b> Click to expand</summary>
+<br/>
 
 ```python
 from ihcinfer import IHCAnalyzer
 
 analyzer = IHCAnalyzer(
-    model_dir="/path/to/DeepLIIF/model-server/DeepLIIF_Latest_Model",  # 可选，省略则自动下载/缓存
+    model_dir="/path/to/DeepLIIF_Latest_Model",  # omit to auto-download
     gpu_ids=[0],
     batch_size=16,
 )
@@ -44,133 +186,142 @@ print(f"Region samples: {len(result.region_sample_paths) // 2}")
 print(f"Patch samples: {len(result.patch_sample_dirs)}")
 ```
 
-如果不想使用自动下载（例如完全离线环境），可以禁用：
+</details>
+
+---
+
+<a name="python-api"></a>
+## 🐍 Python API
+
+`IHCAnalyzer` is the unified entry point for most users:
 
 ```python
-analyzer = IHCAnalyzer(model_dir="/path/to/model", auto_download=False)
+from ihcinfer import IHCAnalyzer
+
+analyzer = IHCAnalyzer(gpu_ids=[0], batch_size=16)
+
+# Whole-slide inference
+result = analyzer.infer_wsi("slide.svs", output_dir="./outputs")
+
+# Patch inference
+patch_result = analyzer.infer_patches(["p1.png", "p2.png"], output_dir="./patch_outputs")
+
+# Tissue segmentation
+mask = analyzer.segment_tissue("slide.svs", mode="ihc")
 ```
 
-或者通过环境变量更换下载源：
+---
+
+<a name="why-ihcinfer"></a>
+## 🚀 Why ihcinfer?
+
+| Metric | Original DeepLIIF | ihcinfer | Speedup |
+|---|---|---|---|
+| Full patch pipeline (CPU, 4 patches) | 28.54 s | 19.50 s | **1.46×** |
+| Inference only (GPU) | 1.75 s | 0.55 s | **3.17×** |
+| Full patch pipeline (GPU) | 10.21 s | 0.69 s | **14.79×** |
+| WSI end-to-end (1453 patches, GPU, estimated) | ~10 min | ~4 min | **~2.5–3×** |
+
+Test environment: 6× NVIDIA RTX 3090 / 24 GiB. Reproduction scripts are in [`benchmarks/`](benchmarks/).
+
+<p align="center">
+  <img src="docs/assets/bench_patch_times_en.png" alt="Patch-level time comparison" width="32%"/>
+  <img src="docs/assets/bench_wsi_throughput_en.png" alt="WSI throughput comparison" width="32%"/>
+  <img src="docs/assets/bench_speedup_en.png" alt="Speedup over original DeepLIIF" width="32%"/>
+</p>
+
+> Charts generated by [`benchmarks/plot_benchmarks.py`](benchmarks/plot_benchmarks.py) from the table above.
+
+---
+
+<a name="pipeline-architecture"></a>
+## 🏗️ Pipeline Architecture
+
+```mermaid
+graph LR
+    A[WSI: SVS / KFB] --> B[Tissue Segmentation<br/>ihc / clam mode]
+    B --> C[Chunked Patch Tiler]
+    C --> D[DeepLIIF Batch Inference]
+    D --> E[Cell Scoring]
+    E --> F[CSV + Heatmap]
+    E --> G[H&E Thumbnail + Overlay]
+    E --> H[Region / Patch Samples]
+```
+
+---
+
+<a name="documentation"></a>
+## 📚 Documentation & Resources
+
+| Resource | Link | Description |
+|---|---|---|
+| Example scripts | [`examples/`](examples/) | Patch inference, WSI inference, and tissue-segmentation examples |
+| CLI details | [`examples/README.md`](examples/README.md) | `ihc` command and subcommand reference |
+| Benchmarks | [`benchmarks/`](benchmarks/) | Reproducible comparisons against original DeepLIIF |
+
+---
+
+<a name="cli-reference"></a>
+## 🛠️ CLI Reference
 
 ```bash
-export IHCINFER_MODEL_URL="https://example.com/DeepLIIF_Latest_Model.zip"
+ihc --help
+
+# Subcommands
+ihc tissue_seg --input <slide> --output_dir <dir> [--overlay] [--mode ihc|clam]
+ihc patch_infer --input <patch_or_dir> --output_dir <dir> [--model_dir <dir>]
+ihc infer --slide_path <slide> --output_dir <dir> [--gpu_ids 0] [--batch_size 8]
 ```
 
-## 命令行工具
+---
 
-安装后会提供 `ihc` 命令，包含三个子命令：
-
-```bash
-# 组织分割（无需模型）
-ihc tissue_seg --input "tests/data/slides/98140-6 CD3.svs" --output_dir ./tissue_mask --overlay
-
-# patch 推理
-ihc patch_infer --input tests/data/patches/22_2.png --output_dir ./patch_outputs
-
-# WSI 推理
-ihc infer --slide_path /path/to/slide.svs --output_dir ./ihc_outputs --gpu_ids 0
-```
-
-## 项目结构
-
-```
-ihcinfer/
-├── ihcinfer/
-│   ├── __init__.py       # 公共 API：IHCAnalyzer, segment_tissue
-│   ├── cli.py            # ihcinfer 命令行入口
-│   ├── inference/        # 推理入口（IHCAnalyzer / PatchInference / RegionInference）
-│   ├── models/           # DeepLIIF 模型加载与运行
-│   ├── prep/             # 切片、组织 mask、空白 patch 过滤
-│   ├── readers/          # WSI 读取抽象层（OpenSlide / KFB / PIL）
-│   ├── scoring/          # 细胞计数与后处理
-│   └── outputs/          # CSV / 热力图 / patch 输出保存
-├── tests/                # 测试
-├── SPEC.md               # 需求规格
-└── PLAN.md               # 实施计划
-```
-
-## 高级用法
-
-除公共 API `IHCAnalyzer` 外，高级类/函数仍可通过子模块显式导入：
+<a name="advanced-usage"></a>
+## 🔧 Advanced Usage
 
 ```python
 from ihcinfer.inference import PatchInference, RegionInference
 from ihcinfer.models import DeepLIIFModel
-from ihcinfer.prep import Tiler, TissueSegmenter, TissueMask, segment_tissue
+from ihcinfer.prep import Tiler, TissueSegmenter, segment_tissue
 from ihcinfer.readers import create_reader
 from ihcinfer.scoring import compute_scoring, extract_cells
 from ihcinfer.outputs import build_patch_output, save_patch_output, build_heatmap
 ```
 
-## 组织分割
+---
 
-`ihcinfer` 提供了独立的 IHC 组织分割接口，默认使用针对 IHC 背景优化的 `mode="ihc"`：
+<a name="benchmarks"></a>
+## 📈 Benchmarks
 
-```python
-from ihcinfer import segment_tissue
-
-mask = segment_tissue("/path/to/slide.svs")
-print(mask.mask.shape)
-
-# 使用同一 analyzer 实例也可以直接调用
-from ihcinfer import IHCAnalyzer
-analyzer = IHCAnalyzer(model_dir="/path/to/model")
-mask = analyzer.segment_tissue("/path/to/slide.svs")
-```
-
-## 测试
+All numbers can be reproduced with the scripts in [`benchmarks/`](benchmarks/):
 
 ```bash
-uv run pytest tests/ -v
-```
-
-## 性能对比
-
-测试环境：6× NVIDIA RTX 3090 / 24 GiB，DeepLIIF TorchScript 模型，4 张 `512×512` patch（patch 级 benchmark）和 `tests/data/slides/98140-6 CD3.svs` 全片（WSI benchmark）。
-
-### Patch 级推理（CPU）
-
-| 指标 | DeepLIIF original | ihcinfer | 加速比 |
-|------|-------------------|--------------|--------|
-| 模型加载 | 1.47s | 1.42s | **1.04x** |
-| 纯推理 | 18.76s (4.69s/patch) | 19.55s (4.89s/patch) | 0.96x |
-| 完整流程（推理 + 后处理） | 28.54s (7.13s/patch) | 19.50s (4.88s/patch) | **1.46x** |
-
-### Patch 级推理（GPU: cuda:0）
-
-| 指标 | DeepLIIF original | ihcinfer | 加速比 |
-|------|-------------------|--------------|--------|
-| 模型加载 | 1.94s | 1.44s | **1.35x** |
-| 纯推理 | 1.75s (0.44s/patch) | 0.55s (0.14s/patch) | **3.17x** |
-| 完整流程（推理 + 后处理） | 10.21s (2.55s/patch) | 0.69s (0.17s/patch) | **14.79x** |
-
-### WSI / Region 级推理
-
-- **Region（1024×1024，CPU）**：DeepLIIF original 顺序处理 4 张 patch 约 25.60s；ihcinfer `infer_region` 约 19.83s（不过滤 tissue）/ 14.49s（按 `min_ratio=0.05` 过滤），分别快 **1.29x** / **1.77x**。
-- **完整 WSI（GPU: cuda:0，1453 张 512×512 tissue patches）**：
-  - ihcinfer 完整流程（CSV + heatmap + thumbnail + overlay + 2 region samples + 4 patch samples）：**3m46s**（≈0.16s/patch）。
-  - ihcinfer 推理核心（CSV + heatmap，跳过可视化采样和 thumbnail）：**210s**（≈0.14s/patch）。
-  - 用同一张切片的 50 张实际 patch 对比：DeepLIIF original 顺序完整流程约 **0.41s/patch**，ihcinfer scoring-only 路径约 **0.11s/patch**、完整图片返回路径约 **0.12s/patch**，单 patch 加速约 **3.3–3.7x**。
-  - 按此比例推算，相同 1453 张 patch 的 original 顺序流程约需 **10 分钟**（仅推理+后处理），ihcinfer 端到端约 **4 分钟**，WSI 端到端加速约 **2.5–3x**。
-
-本次重构后在 WSI 主流程启用了 scoring-only 快速路径：`_PatchBuffer` 在计算 scoring 时不再生成 seg/marker PIL 图片，进一步降低了 host 内存峰值，同时保持 patch/region 可视化路径不变。完整流程在 GPU 下提升最明显，主要因为 ihcinfer 把推理和后处理串得更紧凑，减少了原始 DeepLIIF pipeline 中的数据流转开销；WSI 场景下还通过 tissue mask 预过滤、chunk 批量读取、跨 chunk 的 patch buffer 以及 scoring-only 路径进一步减少冗余工作。
-
-复现方式（需要原始 DeepLIIF 仓库在 `PYTHONPATH` 中；不指定 `--model_dir` 时会自动下载模型）：
-
-```bash
-# patch 级对比
+# Patch-level comparison (original DeepLIIF repo must be on PYTHONPATH)
 PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_patch_vs_original.py --device cuda:0
 
-# region 级对比
+# Region-level comparison
 PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_region_inference.py
 
-# 50 张 WSI patch 对比（用于 README 中 WSI 加速比推算）
+# WSI 50-patch comparison
 PYTHONPATH=/path/to/DeepLIIF uv run python benchmarks/bench_wsi_50_vs_original.py
 
-# IHC WSI 完整流程计时（省略 --model_dir 则首次自动下载模型）
+# Full IHC WSI pipeline timing
 uv run python examples/infer_ihc.py \
   --slide_path /path/to/slide.svs \
   --output_dir ./ihc_outputs \
   --gpu_ids 0 --batch_size 8 \
   --patch_size 512 --region_size 2048
 ```
+
+---
+
+<a name="contributing"></a>
+## 🤝 Contributing
+
+Issues and PRs are welcome.
+
+---
+
+<a name="license"></a>
+## 📄 License
+
+This project is licensed under the [MIT](LICENSE) License.
