@@ -11,6 +11,13 @@ from ihcinfer import IHCAnalyzer
 MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Model"
 SVS = "tests/data/slides/98140-6 CD3.svs"
 
+# Skip the whole module if either the test slide or the local model is missing.
+pytestmark = [
+    pytest.mark.skipif(not Path(SVS).exists(), reason="test slide not available"),
+    pytest.mark.skipif(not Path(MODEL_DIR).exists(), reason="local DeepLIIF model not available"),
+    pytest.mark.slow,
+]
+
 # A 4096x4096 level-0 region known to contain tissue, selected from a full WSI run.
 CROP_X = 16384
 CROP_Y = 16384
@@ -31,7 +38,7 @@ def small_slide_path(tmp_path: Path) -> Path:
 
 @pytest.mark.slow
 def test_infer_wsi_cropped_slide(small_slide_path: Path, tmp_path: Path):
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4, auto_download=False)
     result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),
@@ -54,7 +61,7 @@ def test_infer_wsi_cropped_slide(small_slide_path: Path, tmp_path: Path):
 @pytest.mark.slow
 def test_infer_wsi_arbitrary_chunk_size(small_slide_path: Path, tmp_path: Path):
     """chunk_size no longer needs to be a multiple of region_size."""
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4, auto_download=False)
     result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),
@@ -79,7 +86,7 @@ def test_infer_wsi_arbitrary_chunk_size(small_slide_path: Path, tmp_path: Path):
 
 @pytest.mark.slow
 def test_infer_wsi_skip_thumbnail(small_slide_path: Path, tmp_path: Path):
-    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4)
+    inf = IHCAnalyzer(model_dir=MODEL_DIR, batch_size=4, auto_download=False)
     result = inf.infer_wsi(
         str(small_slide_path),
         str(tmp_path / "out"),

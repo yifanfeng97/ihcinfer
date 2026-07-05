@@ -4,8 +4,8 @@
 # Local Claude settings (personal overrides)
 .claude/settings.local.json
 
-# Test data
-tests/data/
+# Large test data (full-slide images). Small patch PNGs are tracked.
+tests/data/slides/
 
 # Python
 __pycache__/

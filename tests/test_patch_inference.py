@@ -14,14 +14,22 @@ MODEL_DIR = "/home/fengyifan/disk/code/DeepLIIF/model-server/DeepLIIF_Latest_Mod
 PATCH = "tests/data/patches/22_2.png"
 
 
+def _model_available() -> bool:
+    return Path(MODEL_DIR).exists()
+
+
 @pytest.fixture(scope="module")
 def inference():
-    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+    if not _model_available():
+        pytest.skip("Local DeepLIIF model not available")
+    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2, auto_download=False)
 
 
 @pytest.fixture(scope="module")
 def analyzer():
-    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
+    if not _model_available():
+        pytest.skip("Local DeepLIIF model not available")
+    return IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2, auto_download=False)
 
 
 def _assert_scoring(score: dict) -> None:
@@ -103,10 +111,11 @@ def test_infer_patches_blank_patch(inference, tmp_path: Path):
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(not _model_available(), reason="Local DeepLIIF model not available")
 def test_infer_patches_default_batch_size():
     # Different instance-level batch sizes should produce the same scoring.
-    inf_default = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2)
-    inf_small = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=1)
+    inf_default = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=2, auto_download=False)
+    inf_small = IHCAnalyzer(model_dir=MODEL_DIR, gpu_ids=[], batch_size=1, auto_download=False)
 
     default_results = inf_default.infer_patches([PATCH])
     small_batch_results = inf_small.infer_patches([PATCH])
@@ -145,6 +154,7 @@ def test_blank_image_patch(inference):
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(not _model_available(), reason="Local DeepLIIF model not available")
 def test_infer_region(inference, tmp_path):
     arr = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
     region = Image.fromarray(arr)
