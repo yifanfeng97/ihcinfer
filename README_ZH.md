@@ -14,14 +14,16 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0-3776ab?style=for-the-badge&labelColor=1a1a2e" alt="Version">
+  <a href="https://pypi.org/project/ihcinfer/">
+    <img src="https://img.shields.io/pypi/v/ihcinfer.svg?style=for-the-badge&labelColor=1a1a2e&color=3776ab" alt="PyPI version">
+  </a>
   <img src="https://img.shields.io/badge/python-3.10%2B-3776ab?style=for-the-badge&logo=python&logoColor=white&labelColor=1a1a2e" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-06b6d4?style=for-the-badge&labelColor=1a1a2e" alt="Platform">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-06b6d4?style=for-the-badge&labelColor=1a1a2e" alt="License"></a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/hero.png" alt="ihcinfer 流程：WSI → 组织 mask → patch 推理 → 热力图叠加" width="90%"/>
+  <img src="https://raw.githubusercontent.com/yifanfeng97/ihcinfer/main/docs/assets/hero.png" alt="ihcinfer 流程：WSI → 组织 mask → patch 推理 → 热力图叠加" width="90%"/>
 </p>
 
 ---
@@ -225,9 +227,9 @@ mask = analyzer.segment_tissue("slide.svs", mode="ihc")
 测试环境：6× NVIDIA RTX 3090 / 24 GiB。复现脚本见 [`benchmarks/`](benchmarks/)。
 
 <p align="center">
-  <img src="docs/assets/bench_patch_times_zh.png" alt="Patch 级推理耗时对比" width="32%"/>
-  <img src="docs/assets/bench_wsi_throughput_zh.png" alt="WSI 吞吐对比" width="32%"/>
-  <img src="docs/assets/bench_speedup_zh.png" alt="相比原始 DeepLIIF 的加速比" width="32%"/>
+  <img src="https://raw.githubusercontent.com/yifanfeng97/ihcinfer/main/docs/assets/bench_patch_times_zh.png" alt="Patch 级推理耗时对比" width="32%"/>
+  <img src="https://raw.githubusercontent.com/yifanfeng97/ihcinfer/main/docs/assets/bench_wsi_throughput_zh.png" alt="WSI 吞吐对比" width="32%"/>
+  <img src="https://raw.githubusercontent.com/yifanfeng97/ihcinfer/main/docs/assets/bench_speedup_zh.png" alt="相比原始 DeepLIIF 的加速比" width="32%"/>
 </p>
 
 > 图表由 [`benchmarks/plot_benchmarks.py`](benchmarks/plot_benchmarks.py) 根据上表数据生成。
