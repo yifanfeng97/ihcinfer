@@ -40,7 +40,7 @@ ihc infer \
 |---|---|---|
 | [`infer_patch.py`](infer_patch.py) | Patch / 目录批量推理 | `--input`, `--output_dir`, `--save_marker` |
 | [`infer_ihc.py`](infer_ihc.py) | 全片 IHC 推理 + 热力图/叠加图 | `--slide_path`, `--batch_size`, `--patch_size`, `--region_size` |
-| [`segment_tissue.py`](segment_tissue.py) | WSI / 图像组织分割 | `--input`, `--output_dir`, `--overlay`, `--mode ihc\|clam` |
+| [`segment_tissue.py`](segment_tissue.py) | WSI / 图像组织分割 | `--input`, `--output_dir`, `--overlay`, `--mode ihc\|he` |
 
 ---
 

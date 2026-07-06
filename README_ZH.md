@@ -32,7 +32,7 @@
 ## 📰 最新动态
 
 - **🚀 统一 `ihc` CLI** — 一条命令覆盖 `tissue_seg`、`patch_infer`、`infer` 三个场景。
-- **🧫 IHC 组织分割** — 默认 `ihc` 模式，针对免疫组化背景优化；也支持 `clam` 模式处理 H&E。
+- **🧫 IHC 组织分割** — 默认 `ihc` 模式，针对免疫组化背景优化；也支持 `he` 模式处理 H&E。
 - **⚡ Scoring-only 快速路径** — WSI 推理时跳过中间 PIL 图像生成，降低内存、提升吞吐。
 - **⬇️ 自动下载模型** — 首次使用省略 `model_dir` 时，自动从 Zenodo 下载 DeepLIIF TorchScript 模型。
 - **🧩 跨 chunk 批量切图** — 大切片按 chunk 读取并跨边界组 batch，GPU 利用率更高。
@@ -54,7 +54,7 @@
 | 📊 | **定量输出** | 每 patch 细胞总数 / 阳性数 / 阳性比例 CSV + 坐标。 |
 | 🗺️ | **可视化输出** | 热力图、H&E 缩略图、叠加图、Region / Patch 采样。 |
 | 🧠 | **模型自动加载** | 省略 `model_dir` 时从 Zenodo 自动下载 DeepLIIF 模型。 |
-| 🧫 | **组织分割** | 独立的 `ihc` / `clam` 组织 mask，无需模型。 |
+| 🧫 | **组织分割** | 独立的 `ihc` / `he` 组织 mask，无需模型。 |
 | 🚀 | **显著加速** | GPU 完整流程相比原始 DeepLIIF 最高快 **14.79×**。 |
 
 ---
@@ -241,7 +241,7 @@ mask = analyzer.segment_tissue("slide.svs", mode="ihc")
 
 ```mermaid
 graph LR
-    A[WSI: SVS / KFB] --> B[组织分割<br/>ihc / clam 模式]
+    A[WSI: SVS / KFB] --> B[组织分割<br/>ihc / he 模式]
     B --> C[分块 Patch 切图]
     C --> D[DeepLIIF 批量推理]
     D --> E[细胞计数]
@@ -270,7 +270,7 @@ graph LR
 ihc --help
 
 # 子命令
-ihc tissue_seg --input <slide> --output_dir <dir> [--overlay] [--mode ihc|clam]
+ihc tissue_seg --input <slide> --output_dir <dir> [--overlay] [--mode ihc|he]
 ihc patch_infer --input <patch_or_dir> --output_dir <dir> [--model_dir <dir>]
 ihc infer --slide_path <slide> --output_dir <dir> [--gpu_ids 0] [--batch_size 8]
 ```

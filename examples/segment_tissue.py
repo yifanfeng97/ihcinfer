@@ -55,7 +55,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--mode",
-        choices=["ihc", "clam"],
+        choices=["ihc", "he"],
         default="ihc",
         help="Segmentation mode (default: ihc)",
     )

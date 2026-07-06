@@ -32,7 +32,7 @@
 ## 📰 What's New
 
 - **🚀 Unified `ihc` CLI** — one command for `tissue_seg`, `patch_infer`, and `infer`.
-- **🧫 IHC Tissue Segmentation** — default `ihc` mode optimized for immunohistochemistry backgrounds; `clam` mode for H&E.
+- **🧫 IHC Tissue Segmentation** — default `ihc` mode optimized for immunohistochemistry backgrounds; `he` mode for H&E.
 - **⚡ Scoring-only Fast Path** — skip intermediate PIL images during WSI inference to lower memory and boost throughput.
 - **⬇️ Automatic Model Download** — the DeepLIIF TorchScript model is downloaded from Zenodo the first time `model_dir` is omitted.
 - **🧩 Cross-chunk Batch Tiling** — large slides are read in chunks and patches are batched across chunk boundaries for better GPU utilization.
@@ -54,7 +54,7 @@
 | 📊 | **Quantitative outputs** | Per-patch total / positive cell counts and positive ratios as CSV + coordinates. |
 | 🗺️ | **Visual outputs** | Heatmaps, H&E thumbnails, overlays, region / patch samples. |
 | 🧠 | **Automatic model loading** | DeepLIIF model auto-downloaded from Zenodo when `model_dir` is omitted. |
-| 🧫 | **Tissue segmentation** | Standalone `ihc` / `clam` tissue masks, no model required. |
+| 🧫 | **Tissue segmentation** | Standalone `ihc` / `he` tissue masks, no model required. |
 | 🚀 | **Dramatic speedups** | Up to **14.79×** faster than original DeepLIIF for the full GPU pipeline. |
 
 ---
@@ -241,7 +241,7 @@ Test environment: 6× NVIDIA RTX 3090 / 24 GiB. Reproduction scripts are in [`be
 
 ```mermaid
 graph LR
-    A[WSI: SVS / KFB] --> B[Tissue Segmentation<br/>ihc / clam mode]
+    A[WSI: SVS / KFB] --> B[Tissue Segmentation<br/>ihc / he mode]
     B --> C[Chunked Patch Tiler]
     C --> D[DeepLIIF Batch Inference]
     D --> E[Cell Scoring]
@@ -270,7 +270,7 @@ graph LR
 ihc --help
 
 # Subcommands
-ihc tissue_seg --input <slide> --output_dir <dir> [--overlay] [--mode ihc|clam]
+ihc tissue_seg --input <slide> --output_dir <dir> [--overlay] [--mode ihc|he]
 ihc patch_infer --input <patch_or_dir> --output_dir <dir> [--model_dir <dir>]
 ihc infer --slide_path <slide> --output_dir <dir> [--gpu_ids 0] [--batch_size 8]
 ```

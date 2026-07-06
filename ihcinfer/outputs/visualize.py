@@ -220,14 +220,14 @@ def build_heatmap(
     downsample: int | None = None,
     cmap: str = "viridis",
     vmax: float | None = None,
-    sigma: float = 0.75,
+    sigma: float = 0.5,
     bg_color: Tuple[int, int, int] | None = (255, 255, 255),
     upscale: int | None = 2,
     max_size: int | None = None,
     tissue_mask=None,
     grid_factor: int | None = None,
     radius_factor: float = 1.5,
-    sigma_factor: float = 0.75,
+    sigma_factor: float = 0.45,
     max_neighbors: int = 50,
 ) -> None:
     """Build a heatmap from patch records.

@@ -46,7 +46,19 @@ def main() -> None:
         "--heatmap_vmax", type=float, default=50.0, help="Heatmap color scale upper bound"
     )
     parser.add_argument(
-        "--heatmap_sigma", type=float, default=0.75, help="Gaussian smoothing sigma"
+        "--heatmap_sigma", type=float, default=0.5, help="Gaussian smoothing sigma (grid mode only)"
+    )
+    parser.add_argument(
+        "--heatmap_sigma_factor",
+        type=float,
+        default=0.45,
+        help="Interpolated heatmap Gaussian sigma as a multiple of patch size (default 0.45)",
+    )
+    parser.add_argument(
+        "--heatmap_radius_factor",
+        type=float,
+        default=1.5,
+        help="Interpolated heatmap neighbor radius as a multiple of patch size (default 1.5)",
     )
     parser.add_argument(
         "--heatmap_upscale",
@@ -109,6 +121,8 @@ def main() -> None:
         heatmap_cmap=args.heatmap_cmap,
         heatmap_vmax=args.heatmap_vmax,
         heatmap_sigma=args.heatmap_sigma,
+        heatmap_sigma_factor=args.heatmap_sigma_factor,
+        heatmap_radius_factor=args.heatmap_radius_factor,
         heatmap_upscale=args.heatmap_upscale,
         heatmap_max_size=args.heatmap_max_size,
         heatmap_grid_factor=args.heatmap_grid_factor,

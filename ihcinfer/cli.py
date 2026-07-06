@@ -128,6 +128,8 @@ def _cmd_infer(args: argparse.Namespace) -> int:
         heatmap_cmap=args.heatmap_cmap,
         heatmap_vmax=args.heatmap_vmax,
         heatmap_sigma=args.heatmap_sigma,
+        heatmap_sigma_factor=args.heatmap_sigma_factor,
+        heatmap_radius_factor=args.heatmap_radius_factor,
         heatmap_upscale=args.heatmap_upscale,
         heatmap_max_size=args.heatmap_max_size,
         heatmap_grid_factor=args.heatmap_grid_factor,
@@ -200,7 +202,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     tissue_parser.add_argument(
         "--mode",
-        choices=["ihc", "clam"],
+        choices=["ihc", "he"],
         default="ihc",
         help="Segmentation mode (default: ihc)",
     )
@@ -306,8 +308,20 @@ def _build_parser() -> argparse.ArgumentParser:
     infer_parser.add_argument(
         "--heatmap_sigma",
         type=float,
-        default=0.75,
-        help="Gaussian smoothing sigma",
+        default=0.5,
+        help="Gaussian smoothing sigma (grid mode only)",
+    )
+    infer_parser.add_argument(
+        "--heatmap_sigma_factor",
+        type=float,
+        default=0.45,
+        help="Interpolated heatmap Gaussian sigma as a multiple of patch size (default 0.45)",
+    )
+    infer_parser.add_argument(
+        "--heatmap_radius_factor",
+        type=float,
+        default=1.5,
+        help="Interpolated heatmap neighbor radius as a multiple of patch size (default 1.5)",
     )
     infer_parser.add_argument(
         "--heatmap_upscale",

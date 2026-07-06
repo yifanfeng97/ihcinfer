@@ -1,6 +1,6 @@
 [project]
 name = "ihcinfer"
-version = "0.1.1"
+version = "0.2.0"
 description = "Fast patch-based immunohistochemistry (IHC) inference library for whole-slide images (SVS/KFB), powered by DeepLIIF"
 readme = "README.md"
 license = "MIT"

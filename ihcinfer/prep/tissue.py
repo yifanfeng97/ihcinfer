@@ -1,4 +1,4 @@
-"""Tissue segmentation mask and CLAM/IHC segmenter."""
+"""Tissue segmentation mask and H&E/IHC segmenter."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ class TissueMask:
 
 
 class TissueSegmenter:
-    """Tissue segmentation with CLAM-style or IHC-optimized pipelines."""
+    """Tissue segmentation with IHC or H&E-optimized pipelines."""
 
     def __init__(
         self,
@@ -82,12 +82,11 @@ class TissueSegmenter:
         use_otsu: bool = False,
         filter_params: dict | None = None,
         ref_patch_size: int = 512,
-        white_filter: bool = False,
         white_v_thresh: int = 240,
         white_s_thresh: int = 20,
     ) -> None:
-        if mode not in ("clam", "ihc"):
-            raise ValueError("mode must be 'clam' or 'ihc'")
+        if mode not in ("he", "ihc"):
+            raise ValueError("mode must be 'he' or 'ihc'")
         self.seg_level = seg_level
         self.mode = mode
         self.sthresh = sthresh
@@ -98,7 +97,6 @@ class TissueSegmenter:
         self.use_otsu = use_otsu
         self.filter_params = filter_params or {"a_t": 100}
         self.ref_patch_size = ref_patch_size
-        self.white_filter = white_filter
         self.white_v_thresh = white_v_thresh
         self.white_s_thresh = white_s_thresh
 
@@ -133,6 +131,102 @@ class TissueSegmenter:
             hole_contours.append(kept)
 
         return foreground, hole_contours
+
+    def _scaled_filter_params(self, scale: tuple[float, float]) -> dict:
+        """Return filter params with area thresholds expressed in mask pixels.
+
+        ``filter_params['a_t']`` is interpreted as a number of
+        ``ref_patch_size x ref_patch_size`` regions at level 0.  The threshold
+        is converted to mask-resolution pixels by multiplying with the area of
+        one such region at the downsampled segmentation level.
+        """
+        if scale[0] <= 1.0 and scale[1] <= 1.0:
+            ref_patch_area_at_mask = 1
+        else:
+            ref_patch_area_at_mask = int(self.ref_patch_size**2 / (scale[0] * scale[1]))
+        filter_params = self.filter_params.copy()
+        filter_params["a_t"] = filter_params.get("a_t", 100) * ref_patch_area_at_mask
+        filter_params.setdefault("a_h", filter_params["a_t"] * 0.05)
+        filter_params.setdefault("max_n_holes", 10)
+        return filter_params
+
+    def _build_mask(
+        self,
+        img: np.ndarray,
+        scale: tuple[float, float],
+        binary: np.ndarray,
+        filter_params: dict,
+    ) -> TissueMask:
+        """Convert a binary tissue mask into a level-0 aligned ``TissueMask``."""
+        contours, hierarchy = cv2.findContours(
+            binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+        )
+
+        if not contours:
+            empty = np.zeros(
+                (img.shape[0], img.shape[1]),
+                dtype=np.uint8,
+            )
+            return TissueMask(empty, scale, [], [])
+
+        foreground, holes = self._filter_contours(contours, hierarchy, filter_params)
+
+        scaled_foreground = [
+            (cont * scale).astype(np.int32) for cont in foreground
+        ]
+        scaled_holes = [
+            [(hole * scale).astype(np.int32) for hole in hole_list]
+            for hole_list in holes
+        ]
+
+        mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
+        cv2.drawContours(mask, foreground, -1, 1, -1)
+        for hole_list in holes:
+            cv2.drawContours(mask, hole_list, -1, 0, -1)
+
+        return TissueMask(mask, scale, scaled_foreground, scaled_holes)
+
+    def _segment_he(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMask:
+        """H&E-style HSV saturation thresholding."""
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        sat = cv2.medianBlur(hsv[:, :, 1], self.mthresh)
+
+        if self.use_otsu:
+            _, binary = cv2.threshold(
+                sat, 0, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
+        else:
+            _, binary = cv2.threshold(
+                sat, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY
+            )
+
+        if self.close > 0:
+            kernel = np.ones((self.close, self.close), np.uint8)
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+        return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
+
+    def _segment_ihc(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMask:
+        """IHC tissue mask: non-white pixels are treated as tissue.
+
+        The glass background in IHC slides is bright and nearly colourless, so we
+        define background in HSV as pixels with high Value and low Saturation,
+        then mark everything else as foreground.
+        """
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        sure_bg = (
+            (hsv[:, :, 2] >= self.white_v_thresh)
+            & (hsv[:, :, 1] <= self.white_s_thresh)
+        )
+        binary = (~sure_bg).astype(np.uint8) * 255
+
+        if self.ihc_close > 0:
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE, (self.ihc_close, self.ihc_close)
+            )
+            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+        return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
 
     def segment(self, slide_path_or_img) -> TissueMask:
         """Segment tissue and return a level-0 aligned ``TissueMask``."""
@@ -169,7 +263,7 @@ class TissueSegmenter:
 
         if self.mode == "ihc":
             return self._segment_ihc(img, scale)
-        return self._segment_clam(img, scale)
+        return self._segment_he(img, scale)
 
 
 def segment_tissue(
@@ -182,13 +276,14 @@ def segment_tissue(
     """Segment tissue and return a level-0 aligned ``TissueMask``.
 
     This is a convenience wrapper around :class:`TissueSegmenter`.  The default
-    ``mode="ihc"`` is tuned for IHC whole-slide images, whose background
-    appearance differs from H&E slides.
+    ``mode="ihc"`` treats non-white pixels as tissue, which works well for
+    IHC whole-slide images with bright glass backgrounds.  Use ``mode="he"``
+    for H&E-style saturation thresholding.
 
     Args:
         slide_path_or_img: WSI file path, image file path, ``PIL.Image``, or
             ``np.ndarray``.
-        mode: ``"ihc"`` (default) or ``"clam"``.
+        mode: ``"ihc"`` (default) or ``"he"``.
         seg_level: Pyramid level for WSI segmentation, or ``"auto"``.
         **kwargs: Additional arguments forwarded to ``TissueSegmenter``.
 
@@ -198,112 +293,3 @@ def segment_tissue(
     return TissueSegmenter(seg_level=seg_level, mode=mode, **kwargs).segment(
         slide_path_or_img
     )
-
-
-def _scaled_filter_params(self, scale: tuple[float, float]) -> dict:
-    """Return filter params with area thresholds expressed in mask pixels.
-
-    ``filter_params['a_t']`` is interpreted as a number of
-    ``ref_patch_size x ref_patch_size`` regions at level 0.  The threshold
-    is converted to mask-resolution pixels by multiplying with the area of
-    one such region at the downsampled segmentation level.
-    """
-    if scale[0] <= 1.0 and scale[1] <= 1.0:
-        ref_patch_area_at_mask = 1
-    else:
-        ref_patch_area_at_mask = int(self.ref_patch_size**2 / (scale[0] * scale[1]))
-    filter_params = self.filter_params.copy()
-    filter_params["a_t"] = filter_params.get("a_t", 100) * ref_patch_area_at_mask
-    filter_params.setdefault("a_h", filter_params["a_t"] * 0.05)
-    filter_params.setdefault("max_n_holes", 10)
-    return filter_params
-
-
-def _build_mask(
-    self,
-    img: np.ndarray,
-    scale: tuple[float, float],
-    binary: np.ndarray,
-    filter_params: dict,
-) -> TissueMask:
-    """Convert a binary tissue mask into a level-0 aligned ``TissueMask``."""
-    contours, hierarchy = cv2.findContours(
-        binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
-    )
-
-    if not contours:
-        empty = np.zeros(
-            (img.shape[0], img.shape[1]),
-            dtype=np.uint8,
-        )
-        return TissueMask(empty, scale, [], [])
-
-    foreground, holes = self._filter_contours(contours, hierarchy, filter_params)
-
-    scaled_foreground = [
-        (cont * scale).astype(np.int32) for cont in foreground
-    ]
-    scaled_holes = [
-        [(hole * scale).astype(np.int32) for hole in hole_list]
-        for hole_list in holes
-    ]
-
-    mask = np.zeros((img.shape[0], img.shape[1]), dtype=np.uint8)
-    cv2.drawContours(mask, foreground, -1, 1, -1)
-    for hole_list in holes:
-        cv2.drawContours(mask, hole_list, -1, 0, -1)
-
-    return TissueMask(mask, scale, scaled_foreground, scaled_holes)
-
-
-def _segment_clam(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMask:
-    """CLAM-style HSV saturation thresholding."""
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    sat = cv2.medianBlur(hsv[:, :, 1], self.mthresh)
-
-    if self.use_otsu:
-        _, binary = cv2.threshold(
-            sat, 0, self.sthresh_up, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )
-    else:
-        _, binary = cv2.threshold(
-            sat, self.sthresh, self.sthresh_up, cv2.THRESH_BINARY
-        )
-
-    if self.close > 0:
-        kernel = np.ones((self.close, self.close), np.uint8)
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-
-    return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
-
-
-def _segment_ihc(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMask:
-    """IHC-optimized mask: grayscale + Otsu + closing + contour filter."""
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, binary = cv2.threshold(
-        blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-    )
-
-    if self.ihc_close > 0:
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (self.ihc_close, self.ihc_close)
-        )
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-
-    if self.white_filter:
-        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        sure_bg = (
-            (hsv[:, :, 2] >= self.white_v_thresh)
-            & (hsv[:, :, 1] <= self.white_s_thresh)
-        )
-        binary = np.where(sure_bg, 0, binary).astype(np.uint8)
-
-    return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
-
-
-# Attach helper implementations to TissueSegmenter so they remain private methods.
-TissueSegmenter._scaled_filter_params = _scaled_filter_params
-TissueSegmenter._build_mask = _build_mask
-TissueSegmenter._segment_clam = _segment_clam
-TissueSegmenter._segment_ihc = _segment_ihc

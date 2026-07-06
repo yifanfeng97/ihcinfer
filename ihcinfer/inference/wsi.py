@@ -331,13 +331,9 @@ class IHCAnalyzer:
         return self._patch_infer.model
 
     def segment_tissue(self, slide_path_or_img, **kwargs) -> TissueMask:
-        """Segment IHC tissue and return a level-0 aligned ``TissueMask``.
-
-        This is a convenience wrapper that defaults to ``mode="ihc"``.
-        """
+        """Segment tissue and return a level-0 aligned ``TissueMask``."""
         from ..prep.tissue import segment_tissue
 
-        kwargs.setdefault("mode", "ihc")
         return segment_tissue(slide_path_or_img, **kwargs)
 
     @staticmethod
@@ -629,7 +625,9 @@ class IHCAnalyzer:
         image_format: str | None = None,
         heatmap_cmap: str = "viridis",
         heatmap_vmax: float | None = 50.0,
-        heatmap_sigma: float = 0.75,
+        heatmap_sigma: float = 0.5,
+        heatmap_sigma_factor: float = 0.45,
+        heatmap_radius_factor: float = 1.5,
         heatmap_upscale: int | None = None,
         heatmap_max_size: int = 1024,
         heatmap_grid_factor: int = 4,
@@ -742,6 +740,8 @@ class IHCAnalyzer:
             max_size=heatmap_max_size,
             tissue_mask=tissue_mask,
             grid_factor=heatmap_grid_factor,
+            sigma_factor=heatmap_sigma_factor,
+            radius_factor=heatmap_radius_factor,
         )
 
         _progress_log(f"Heatmap saved: {heatmap_path}", progress)
