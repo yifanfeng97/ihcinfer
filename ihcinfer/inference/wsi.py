@@ -337,7 +337,8 @@ class IHCAnalyzer:
         """
         from ..prep.tissue import segment_tissue
 
-        return segment_tissue(slide_path_or_img, mode="ihc", **kwargs)
+        kwargs.setdefault("mode", "ihc")
+        return segment_tissue(slide_path_or_img, **kwargs)
 
     @staticmethod
     def _reservoir_add(
@@ -621,6 +622,7 @@ class IHCAnalyzer:
         chunk_size: int = 8192,
         region_size: int = 2048,
         tissue_min_ratio: float = 0.05,
+        tissue_seg_kwargs: dict | None = None,
         num_region_samples: int = 2,
         num_patch_samples: int = 4,
         save_marker_in_samples: bool = False,
@@ -639,6 +641,8 @@ class IHCAnalyzer:
         if region_size % patch_size != 0:
             raise ValueError("region_size must be a multiple of patch_size")
 
+        tissue_seg_kwargs = tissue_seg_kwargs or {}
+
         slide_path = str(slide_path)
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -646,7 +650,7 @@ class IHCAnalyzer:
         basename = Path(slide_path).stem
 
         _progress_log(f"Segmenting tissue from {slide_path}...", progress)
-        tissue_mask = self.segment_tissue(slide_path)
+        tissue_mask = self.segment_tissue(slide_path, **tissue_seg_kwargs)
 
         with create_reader(slide_path) as reader:
             width, height = reader.width, reader.height

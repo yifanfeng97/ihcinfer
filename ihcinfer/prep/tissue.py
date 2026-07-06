@@ -82,6 +82,9 @@ class TissueSegmenter:
         use_otsu: bool = False,
         filter_params: dict | None = None,
         ref_patch_size: int = 512,
+        white_filter: bool = False,
+        white_v_thresh: int = 240,
+        white_s_thresh: int = 20,
     ) -> None:
         if mode not in ("clam", "ihc"):
             raise ValueError("mode must be 'clam' or 'ihc'")
@@ -95,6 +98,9 @@ class TissueSegmenter:
         self.use_otsu = use_otsu
         self.filter_params = filter_params or {"a_t": 100}
         self.ref_patch_size = ref_patch_size
+        self.white_filter = white_filter
+        self.white_v_thresh = white_v_thresh
+        self.white_s_thresh = white_s_thresh
 
     @staticmethod
     def _filter_contours(contours, hierarchy, filter_params):
@@ -284,6 +290,14 @@ def _segment_ihc(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMas
             cv2.MORPH_ELLIPSE, (self.ihc_close, self.ihc_close)
         )
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+    if self.white_filter:
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        sure_bg = (
+            (hsv[:, :, 2] >= self.white_v_thresh)
+            & (hsv[:, :, 1] <= self.white_s_thresh)
+        )
+        binary = np.where(sure_bg, 0, binary).astype(np.uint8)
 
     return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
 
