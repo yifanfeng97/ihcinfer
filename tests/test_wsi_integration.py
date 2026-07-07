@@ -97,5 +97,5 @@ def test_infer_wsi_skip_thumbnail(small_slide_path: Path, tmp_path: Path):
     assert result.heatmap_path.exists()
     assert result.thumbnail_path is None
     assert result.overlay_path is None
-    assert not (tmp_path / "out" / "he_thumbnail.jpg").exists()
+    assert not (tmp_path / "out" / "wsi_thumbnail.jpg").exists()
     assert not (tmp_path / "out" / "overlay.jpg").exists()

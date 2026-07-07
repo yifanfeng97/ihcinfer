@@ -35,6 +35,28 @@ class OpenSlideReader:
         """Height of the slide in pixels at level 0."""
         return self._slide.dimensions[1]
 
+    @property
+    def bounds(self) -> tuple[int, int, int, int] | None:
+        """Return the scanned-region bounding box if reported by OpenSlide.
+
+        Returns ``(x, y, width, height)`` in level-0 coordinates, or ``None`` if
+        the scanner/vendor does not provide bounds (e.g. Aperio SVS usually does
+        not, while MIRAX .mrxs does).
+        """
+        props = self._slide.properties
+        keys = (
+            "openslide.bounds-x",
+            "openslide.bounds-y",
+            "openslide.bounds-width",
+            "openslide.bounds-height",
+        )
+        if not all(k in props for k in keys):
+            return None
+        try:
+            return tuple(int(float(props[k])) for k in keys)
+        except ValueError:
+            return None
+
     def read(self, xywh: Tuple[int, int, int, int]) -> np.ndarray:
         """Read a region from the slide.
 

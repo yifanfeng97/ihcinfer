@@ -31,6 +31,15 @@
 <a name="whats-new"></a>
 ## 📰 What's New
 
+### v0.2.1
+
+- **🖼️ MIRAX (.mrxs) support** — tissue segmentation now suppresses black out-of-scan regions; thumbnails and overlays are cropped to the scanned bounds so tissue fills the frame.
+- **🔍 Better thumbnail quality for bounded slides** — `OpenSlideReader` exposes `bounds`; `read_slide_thumbnail` upscales before cropping when bounds are present.
+- **📝 Renamed thumbnail output** — WSI thumbnail is now saved as `wsi_thumbnail.jpg` instead of `he_thumbnail.jpg`.
+- **🎚️ IHC background tuning** — `TissueSegmenter` gains a `black_v_thresh` parameter to filter dark scanner background in IHC mode.
+
+### v0.2.0
+
 - **🚀 Unified `ihc` CLI** — one command for `tissue_seg`, `patch_infer`, and `infer`.
 - **🧫 IHC Tissue Segmentation** — default `ihc` mode optimized for immunohistochemistry backgrounds; `he` mode for H&E.
 - **⚡ Scoring-only Fast Path** — skip intermediate PIL images during WSI inference to lower memory and boost throughput.

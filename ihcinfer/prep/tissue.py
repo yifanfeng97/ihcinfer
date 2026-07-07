@@ -84,6 +84,7 @@ class TissueSegmenter:
         ref_patch_size: int = 512,
         white_v_thresh: int = 240,
         white_s_thresh: int = 20,
+        black_v_thresh: int = 15,
     ) -> None:
         if mode not in ("he", "ihc"):
             raise ValueError("mode must be 'he' or 'ihc'")
@@ -99,6 +100,7 @@ class TissueSegmenter:
         self.ref_patch_size = ref_patch_size
         self.white_v_thresh = white_v_thresh
         self.white_s_thresh = white_s_thresh
+        self.black_v_thresh = black_v_thresh
 
     @staticmethod
     def _filter_contours(contours, hierarchy, filter_params):
@@ -207,16 +209,17 @@ class TissueSegmenter:
         return self._build_mask(img, scale, binary, self._scaled_filter_params(scale))
 
     def _segment_ihc(self, img: np.ndarray, scale: tuple[float, float]) -> TissueMask:
-        """IHC tissue mask: non-white pixels are treated as tissue.
+        """IHC tissue mask: non-white, non-black pixels are treated as tissue.
 
         The glass background in IHC slides is bright and nearly colourless, so we
-        define background in HSV as pixels with high Value and low Saturation,
-        then mark everything else as foreground.
+        define background in HSV as pixels with high Value and low Saturation.
+        Some scanners (e.g. MIRAX .mrxs) also fill out-of-scan areas with black,
+        which is treated as background as well.
         """
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         sure_bg = (
-            (hsv[:, :, 2] >= self.white_v_thresh)
-            & (hsv[:, :, 1] <= self.white_s_thresh)
+            ((hsv[:, :, 2] >= self.white_v_thresh) & (hsv[:, :, 1] <= self.white_s_thresh))
+            | (hsv[:, :, 2] <= self.black_v_thresh)
         )
         binary = (~sure_bg).astype(np.uint8) * 255
 

@@ -37,6 +37,16 @@ class SlideReader(Protocol):
         """
         ...
 
+    @property
+    def bounds(self) -> tuple[int, int, int, int] | None:
+        """Optional bounding box ``(x, y, width, height)`` of the scanned region.
+
+        Some scanners (e.g. MIRAX) report a smaller active scan area inside the
+        full level-0 canvas.  When available, this lets callers crop visualisations
+        to the meaningful region.
+        """
+        return None
+
     def close(self) -> None:
         """Release underlying resources."""
         ...

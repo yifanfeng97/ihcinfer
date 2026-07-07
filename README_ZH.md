@@ -31,6 +31,15 @@
 <a name="whats-new"></a>
 ## 📰 最新动态
 
+### v0.2.1
+
+- **🖼️ MIRAX (.mrxs) 支持** — 组织分割排除黑色未扫描区域；缩略图与叠加图按扫描 bounds 裁剪，组织占满画面。
+- **🔍 有 bounds 的切片缩略图画质提升** — `OpenSlideReader` 新增 `bounds` 属性；存在 bounds 时 `read_slide_thumbnail` 先放大再裁剪。
+- **📝 缩略图输出重命名** — WSI 缩略图由 `he_thumbnail.jpg` 改为 `wsi_thumbnail.jpg`。
+- **🎚️ IHC 背景调节** — `TissueSegmenter` 新增 `black_v_thresh` 参数，抑制 IHC 模式下的深色扫描背景。
+
+### v0.2.0
+
 - **🚀 统一 `ihc` CLI** — 一条命令覆盖 `tissue_seg`、`patch_infer`、`infer` 三个场景。
 - **🧫 IHC 组织分割** — 默认 `ihc` 模式，针对免疫组化背景优化；也支持 `he` 模式处理 H&E。
 - **⚡ Scoring-only 快速路径** — WSI 推理时跳过中间 PIL 图像生成，降低内存、提升吞吐。

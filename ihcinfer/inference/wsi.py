@@ -40,6 +40,51 @@ from .patch import (
 from .region import RegionInference
 
 
+def _crop_mask_to_bounds(
+    mask: np.ndarray,
+    full_size: tuple[int, int],
+    bounds: tuple[int, int, int, int],
+    target_size: tuple[int, int],
+) -> np.ndarray:
+    """Crop a binary mask to *bounds* and resize to *target_size* with nearest-neighbor."""
+    full_w, full_h = full_size
+    bx, by, bw, bh = bounds
+    mh, mw = mask.shape
+    x1 = max(0, min(mw, int(round(bx / full_w * mw))))
+    y1 = max(0, min(mh, int(round(by / full_h * mh))))
+    x2 = max(0, min(mw, int(round((bx + bw) / full_w * mw))))
+    y2 = max(0, min(mh, int(round((by + bh) / full_h * mh))))
+    crop = mask[y1:y2, x1:x2] if x2 > x1 and y2 > y1 else np.zeros((1, 1), dtype=np.uint8)
+    resized = Image.fromarray((crop * 255).astype(np.uint8)).resize(
+        target_size, Image.Resampling.NEAREST
+    )
+    return (np.array(resized) > 127).astype(np.uint8)
+
+
+def _crop_image_to_bounds(
+    img: Image.Image,
+    full_size: tuple[int, int],
+    bounds: tuple[int, int, int, int],
+    target_size: tuple[int, int],
+) -> Image.Image:
+    """Crop *img* to *bounds* (relative to *full_size*) and resize to *target_size*."""
+    full_w, full_h = full_size
+    bx, by, bw, bh = bounds
+    if full_w <= 0 or full_h <= 0 or bw <= 0 or bh <= 0:
+        return img.resize(target_size, Image.LANCZOS) if img.size != target_size else img
+
+    img_w, img_h = img.size
+    x1 = max(0, min(img_w, int(round(bx / full_w * img_w))))
+    y1 = max(0, min(img_h, int(round(by / full_h * img_h))))
+    x2 = max(0, min(img_w, int(round((bx + bw) / full_w * img_w))))
+    y2 = max(0, min(img_h, int(round((by + bh) / full_h * img_h))))
+    if x2 > x1 and y2 > y1:
+        img = img.crop((x1, y1, x2, y2))
+    if img.size != target_size:
+        img = img.resize(target_size, Image.LANCZOS)
+    return img
+
+
 PATCH_EXTENSIONS = (".png", ".jpg", ".jpeg")
 
 
@@ -652,6 +697,7 @@ class IHCAnalyzer:
 
         with create_reader(slide_path) as reader:
             width, height = reader.width, reader.height
+            slide_bounds = getattr(reader, "bounds", None)
 
             patches, regions = _plan_patches_and_regions(
                 width,
@@ -752,8 +798,10 @@ class IHCAnalyzer:
             try:
                 with Image.open(heatmap_path) as heatmap_img:
                     target_size = heatmap_img.size
-                    thumbnail_path = output_dir / f"he_thumbnail.{image_format}"
-                    thumb = read_slide_thumbnail(slide_path, target_size)
+                    thumbnail_path = output_dir / f"wsi_thumbnail.{image_format}"
+                    thumb = read_slide_thumbnail(
+                        slide_path, target_size, bounds=slide_bounds
+                    )
                     thumb.save(thumbnail_path, quality=95)
 
                     overlay_path = output_dir / f"overlay.{image_format}"
@@ -762,11 +810,23 @@ class IHCAnalyzer:
                         if overlay_alpha is not None
                         else self.overlay_alpha
                     )
+                    heatmap_for_overlay = (
+                        _crop_image_to_bounds(
+                            heatmap_img, (width, height), slide_bounds, target_size
+                        )
+                        if slide_bounds is not None
+                        else heatmap_img
+                    )
+                    mask_for_overlay = tissue_mask
+                    if slide_bounds is not None:
+                        mask_for_overlay = _crop_mask_to_bounds(
+                            tissue_mask.mask, (width, height), slide_bounds, target_size
+                        )
                     overlay = blend_heatmap_overlay(
                         thumb,
-                        heatmap_img,
+                        heatmap_for_overlay,
                         alpha=alpha,
-                        tissue_mask=tissue_mask,
+                        tissue_mask=mask_for_overlay,
                     )
                     overlay.save(overlay_path, quality=95)
                     _progress_log(
